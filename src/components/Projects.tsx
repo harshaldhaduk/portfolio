@@ -83,6 +83,7 @@ function ProjectsStatic() {
 
   return (
     <>
+      <SectionHeader glyph="⬢" label="Projects" />
       <div
         ref={(node) => {
           reveal.current = node
@@ -123,6 +124,10 @@ function ProjectsPinned() {
 
   return (
     <div ref={pinRef}>
+      {/* Inside the pinned element on purpose: the label stays with the deck
+          for the whole hold, so the section reads as one held unit instead of
+          a row of cards floating alone once the header has scrolled off. */}
+      <SectionHeader glyph="⬢" label="Projects" />
       <div
         ref={viewportRef}
         role="region"
@@ -170,7 +175,6 @@ export function Projects() {
 
   return (
     <section className="pb-20">
-      <SectionHeader glyph="⬢" label="Projects" />
       {reduced ? <ProjectsStatic /> : <ProjectsPinned />}
     </section>
   )

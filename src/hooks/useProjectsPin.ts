@@ -97,7 +97,14 @@ export function useProjectsPin(
       ease: 'none',
       scrollTrigger: {
         trigger: pin,
-        start: 'top top',
+        // Not 'top top'. Pinning flush to the viewport top meant the section
+        // header had already scrolled away by the time the pin engaged, leaving
+        // the cards stranded at the very top of an otherwise empty viewport —
+        // it read as a layout bug rather than a deliberate hold. Engaging at
+        // 18% down starts the travel earlier, while the section is still framed
+        // by space above it, and the header is inside the pinned element so it
+        // stays with the deck for the whole hold.
+        start: 'top 18%',
         end: () => `+=${distance()}`,
         scrub: true,
         pin: true,
