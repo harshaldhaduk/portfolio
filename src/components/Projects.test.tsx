@@ -139,14 +139,28 @@ describe('ProjectCard screenshots', () => {
     }
   })
 
-  it('keeps the frame at a screenshot ratio rather than stretching to the card', () => {
-    // The point of the fixed ratio: a screenshot must never be distorted to
-    // match whatever height the text card happens to be.
+  it('holds the screenshot ratio on the frame, so every column aligns', () => {
+    // The ratio lives on the frame, not the image: the frame is what every
+    // column aligns to, and it must keep its shape whether or not an image has
+    // been supplied yet. The image just fills it.
     render(<Projects />)
-    const images = screen.queryAllByRole('img')
-    for (const img of images) {
-      expect(img.className).toMatch(/aspect-\[16\/10\]/)
+    const frames = document.querySelectorAll('figure')
+    expect(frames).toHaveLength(projects.length)
+    for (const frame of frames) {
+      expect(frame.className).toMatch(/aspect-\[16\/10\]/)
+    }
+    for (const img of screen.queryAllByRole('img')) {
       expect(img.className).toMatch(/object-cover/)
     }
+  })
+
+  it('renders a frame for every project, including those without an image', () => {
+    // Omitting the frame for an imageless project would knock the whole row out
+    // of alignment, which is the failure this layout exists to avoid.
+    render(<Projects />)
+    expect(document.querySelectorAll('figure')).toHaveLength(projects.length)
+    expect(screen.queryAllByRole('img')).toHaveLength(
+      projects.filter((p) => p.image).length,
+    )
   })
 })

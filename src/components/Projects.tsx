@@ -61,9 +61,9 @@ function ProjectsStatic() {
         aria-label={REGION_LABEL}
         tabIndex={0}
         data-cursor-target
-        className="deck-scroller snap-x snap-mandatory overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-dwarf focus-visible:outline-offset-4"
+        className="deck-scroller relative left-1/2 w-screen -translate-x-1/2 snap-x snap-mandatory overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-dwarf focus-visible:outline-offset-4"
       >
-        <ul className="flex items-start gap-5 pb-1">
+        <ul className="flex items-start gap-6 pb-1 pl-[max(1.5rem,calc((100vw-64rem)/2))] pr-[15vw]">
           {projects.map((project) => (
             <ProjectCard key={project.id} project={project} />
           ))}
@@ -91,12 +91,14 @@ function ProjectsPinned() {
   const deck = useProjectsPin(pinRef, viewportRef, trackRef)
 
   return (
-    // Top-aligned, not centred. Once each column became a card stacked over a
-    // screenshot the pair is tall enough to fill most of the viewport on its
-    // own, so there is no longer slack to distribute — and centring a tall block
-    // in a full-height box pushed its top edge off screen. A small top offset
-    // keeps the section header clear of the viewport edge.
-    <div ref={pinRef} className="flex min-h-screen flex-col justify-start pt-[6vh]">
+    // Vertically centred in the pinned viewport. The block is header + frame +
+    // caption, comfortably shorter than the viewport, so centring reads as
+    // deliberate framing and splits any slack evenly rather than pooling it
+    // under the row. (An earlier arrangement had to be top-aligned because the
+    // column was a card stacked over an image and ran tall; flipping to
+    // frame-on-top with the caption beneath made the block short enough to
+    // centre again.)
+    <div ref={pinRef} className="flex min-h-screen flex-col justify-center">
       {/* Inside the pinned element on purpose: the label stays with the deck
           for the whole hold, so the section reads as one held unit instead of
           a row of cards floating alone once the header has scrolled off. */}
@@ -115,14 +117,14 @@ function ProjectsPinned() {
         // moving the pin. `clip` clips identically but creates no scroll
         // container at all, so there is nothing left for the browser to
         // scroll here.
-        className="overflow-clip focus-visible:outline focus-visible:outline-2 focus-visible:outline-dwarf focus-visible:outline-offset-4"
+        className="relative left-1/2 w-screen -translate-x-1/2 overflow-clip focus-visible:outline focus-visible:outline-2 focus-visible:outline-dwarf focus-visible:outline-offset-4"
       >
         <ul
           ref={(node) => {
             reveal.current = node
             trackRef.current = node
           }}
-          className="flex items-start gap-5 pb-1"
+          className="flex items-start gap-6 pb-1 pl-[max(1.5rem,calc((100vw-64rem)/2))] pr-[15vw]"
         >
           {projects.map((project) => (
             <ProjectCard key={project.id} project={project} />
