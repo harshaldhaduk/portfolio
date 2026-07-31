@@ -69,6 +69,7 @@ export const projects: Project[] = [
   },
   {
     id: 'echotrade',
+    image: '/shots/echotrade.png',
     org: 'EchoTrade',
     title: 'Financial sentiment pipeline',
     dates: '2026',
