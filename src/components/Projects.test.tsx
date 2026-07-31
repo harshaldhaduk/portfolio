@@ -103,27 +103,50 @@ describe('Projects', () => {
     }
   })
 
-  // Hiding the scrollbar is only defensible because the affordance moved to
-  // real controls. If these stop being real, focusable buttons, the deck
-  // becomes undriveable by keyboard and the hidden scrollbar becomes a bug.
-  it('offers real prev/next buttons rather than decorative arrows', () => {
+  // The arrows and the NN/NN counter were removed. That took away the only
+  // focusable control, so the dots — previously aria-hidden and tabIndex={-1},
+  // i.e. decorative — became real labelled buttons to replace it. Without this
+  // the deck would have no keyboard-reachable control at all.
+  it('exposes one labelled, focusable control per project', () => {
     render(<Projects />)
-    expect(
-      screen.getByRole('button', { name: /previous project/i }),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: /next project/i }),
-    ).toBeInTheDocument()
+    for (const project of projects) {
+      const control = screen.getByRole('button', {
+        name: new RegExp(`show ${project.org}`, 'i'),
+      })
+      expect(control).toBeInTheDocument()
+      expect(control).not.toHaveAttribute('tabIndex', '-1')
+    }
   })
 
-  it('disables Previous at the start rather than letting it no-op silently', () => {
+  it('no longer renders the prev/next arrows or the position counter', () => {
     render(<Projects />)
-    expect(screen.getByRole('button', { name: /previous project/i })).toBeDisabled()
-  })
-
-  it('shows the position out of the real project count', () => {
-    render(<Projects />)
+    expect(screen.queryByRole('button', { name: /previous project/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /next project/i })).toBeNull()
     const total = String(projects.length).padStart(2, '0')
-    expect(screen.getByText(new RegExp(`01\\s*/\\s*${total}`))).toBeInTheDocument()
+    expect(screen.queryByText(new RegExp(`01\\s*/\\s*${total}`))).toBeNull()
+  })
+})
+
+describe('ProjectCard screenshots', () => {
+  it('renders a screenshot frame only for projects that have one', () => {
+    render(<Projects />)
+    const withImage = projects.filter((p) => p.image)
+    const images = screen.queryAllByRole('img')
+    expect(images).toHaveLength(withImage.length)
+    for (const project of withImage) {
+      const img = screen.getByAltText(new RegExp(`${project.org} screenshot`, 'i'))
+      expect(img).toHaveAttribute('src', project.image!)
+    }
+  })
+
+  it('keeps the frame at a screenshot ratio rather than stretching to the card', () => {
+    // The point of the fixed ratio: a screenshot must never be distorted to
+    // match whatever height the text card happens to be.
+    render(<Projects />)
+    const images = screen.queryAllByRole('img')
+    for (const img of images) {
+      expect(img.className).toMatch(/aspect-\[16\/10\]/)
+      expect(img.className).toMatch(/object-cover/)
+    }
   })
 })

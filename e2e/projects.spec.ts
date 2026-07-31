@@ -97,35 +97,34 @@ test('a project card off-screen in the row can be reached by keyboard, and the p
   await expect(echoTradeLink).toBeInViewport()
 })
 
-test('the deck buttons step it by moving the same scroll position the pin reads, and Previous is disabled at the start', async ({
+test('the dot controls jump the deck, and are the keyboard path the arrows used to be', async ({
   page,
 }) => {
-  // The visible scrollbar was removed deliberately, which means these buttons
-  // ARE the affordance. If they stop working the deck becomes undriveable for
-  // anyone not using a trackpad.
+  // The prev/next arrows and the NN/NN counter were removed. That deleted the
+  // only focusable control, so the dots stopped being decorative
+  // (aria-hidden, tabIndex=-1) and became real labelled buttons. If they are not
+  // reachable and do not move the deck, the section has no keyboard control at
+  // all beyond scrolling the page.
   await page.goto('/')
   await waitForPreloaderGone(page)
-  const region = page.getByRole('region', { name: /scrollable deck/i })
-  await region.scrollIntoViewIfNeeded()
-  const track = region.locator('> ul')
 
-  const prev = page.getByRole('button', { name: /previous project/i })
-  const next = page.getByRole('button', { name: /next project/i })
-  await expect(prev).toBeDisabled()
+  await expect(page.getByRole('button', { name: /previous project/i })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /next project/i })).toHaveCount(0)
 
-  const beforeScrollY = await page.evaluate(() => window.scrollY)
-  const beforeX = await translateX(track)
-  await next.click()
+  const heading = page.getByRole('heading', { name: 'Projects' })
+  await heading.scrollIntoViewIfNeeded()
+  await page.waitForTimeout(400)
 
-  // Next moves the page's scroll position (what the pin's scrub reads), not
-  // some separate offset — asserting both the scroll position and the
-  // resulting translation is what proves there is exactly one source of
-  // truth rather than the button nudging something the pin does not see.
+  const last = page.getByRole('button', { name: /show echotrade/i })
+  await expect(last).toBeVisible()
+
+  // Focusable — this is what replaces the arrows for keyboard users.
+  await last.focus()
+  await expect(last).toBeFocused()
+
+  const before = await page.evaluate(() => window.scrollY)
+  await last.click()
   await expect
-    .poll(() => page.evaluate(() => window.scrollY))
-    .toBeGreaterThan(beforeScrollY)
-  await expect.poll(() => translateX(track)).toBeLessThan(beforeX)
-
-  // Having moved off the start, Previous must become usable again.
-  await expect(prev).toBeEnabled()
+    .poll(() => page.evaluate(() => window.scrollY), { timeout: 4000 })
+    .not.toBe(before)
 })

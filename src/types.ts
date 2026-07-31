@@ -50,6 +50,13 @@ export type Entry = {
   links: Link[]
   /** Progressive-disclosure depth, shown behind an expander. */
   detail?: string
+  /**
+   * Optional screenshot of the thing, shown in its own frame stacked beneath
+   * the project card. Path under `public/shots/`, e.g. `/shots/lattice.png`.
+   * The frame holds a fixed 16:10 ratio — a real screenshot proportion — rather
+   * than stretching to match the card, so screenshots are never distorted.
+   */
+  image?: string
 }
 
 export type Project = Entry

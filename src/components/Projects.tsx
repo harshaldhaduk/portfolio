@@ -19,51 +19,19 @@ const REGION_LABEL = 'Projects — a scrollable deck of cards'
  */
 function DeckControls({ deck }: { deck: CardScroll }) {
   return (
-    <div className="mt-4 flex items-center gap-3">
-      <button
-        type="button"
-        onClick={() => deck.step(-1)}
-        disabled={deck.atStart}
-        aria-label="Previous project"
-        className="deck-button"
-      >
-        ←
-      </button>
-      <button
-        type="button"
-        onClick={() => deck.step(1)}
-        disabled={deck.atEnd}
-        aria-label="Next project"
-        className="deck-button"
-      >
-        →
-      </button>
-
-      {/* Position indicator. aria-hidden because the buttons above and the
-          cards themselves already convey position to assistive tech; a live
-          list of dots would just be noise. */}
-      <ol aria-hidden="true" className="ml-1 flex items-center gap-1.5">
-        {projects.map((project, i) => (
-          <li key={project.id}>
-            <button
-              type="button"
-              tabIndex={-1}
-              onClick={() => deck.goTo(i)}
-              data-cursor-target
-              className={`block h-1.5 rounded-full transition-all duration-300 ${
-                i === deck.index
-                  ? 'w-5 bg-dwarf'
-                  : 'w-1.5 bg-hairline hover:bg-muted'
-              }`}
-            />
-          </li>
-        ))}
-      </ol>
-
-      <span className="ml-auto text-[11px] text-muted">
-        {String(deck.index + 1).padStart(2, '0')} /{' '}
-        {String(projects.length).padStart(2, '0')}
-      </span>
+    <div className="mt-5 flex items-center gap-1.5">
+      {projects.map((project, i) => (
+        <button
+          key={project.id}
+          type="button"
+          onClick={() => deck.goTo(i)}
+          aria-label={`Show ${project.org}`}
+          data-cursor-target
+          className={`block h-1.5 rounded-full transition-all duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-dwarf focus-visible:outline-offset-4 ${
+            i === deck.index ? 'w-6 bg-dwarf' : 'w-1.5 bg-hairline hover:bg-muted'
+          }`}
+        />
+      ))}
     </div>
   )
 }
@@ -95,7 +63,7 @@ function ProjectsStatic() {
         data-cursor-target
         className="deck-scroller snap-x snap-mandatory overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-dwarf focus-visible:outline-offset-4"
       >
-        <ul className="flex gap-5 pb-1">
+        <ul className="flex items-start gap-5 pb-1">
           {projects.map((project) => (
             <ProjectCard key={project.id} project={project} />
           ))}
@@ -123,11 +91,12 @@ function ProjectsPinned() {
   const deck = useProjectsPin(pinRef, viewportRef, trackRef)
 
   return (
-    // Full viewport height with its contents centred: this is what stops the
-    // leftover vertical space piling up beneath the deck. The box is what gets
-    // pinned, the content sits in the middle of it, so the slack is shared
-    // between above and below and reads as breathing room rather than a gap.
-    <div ref={pinRef} className="flex min-h-screen flex-col justify-center">
+    // Top-aligned, not centred. Once each column became a card stacked over a
+    // screenshot the pair is tall enough to fill most of the viewport on its
+    // own, so there is no longer slack to distribute — and centring a tall block
+    // in a full-height box pushed its top edge off screen. A small top offset
+    // keeps the section header clear of the viewport edge.
+    <div ref={pinRef} className="flex min-h-screen flex-col justify-start pt-[6vh]">
       {/* Inside the pinned element on purpose: the label stays with the deck
           for the whole hold, so the section reads as one held unit instead of
           a row of cards floating alone once the header has scrolled off. */}
@@ -153,7 +122,7 @@ function ProjectsPinned() {
             reveal.current = node
             trackRef.current = node
           }}
-          className="flex gap-5 pb-1"
+          className="flex items-start gap-5 pb-1"
         >
           {projects.map((project) => (
             <ProjectCard key={project.id} project={project} />
