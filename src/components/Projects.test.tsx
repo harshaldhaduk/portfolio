@@ -128,7 +128,7 @@ describe('Projects', () => {
 })
 
 describe('ProjectCard screenshots', () => {
-  it('renders a screenshot frame only for projects that have one', () => {
+  it('renders an image only for projects that have one', () => {
     render(<Projects />)
     const withImage = projects.filter((p) => p.image)
     const images = screen.queryAllByRole('img')

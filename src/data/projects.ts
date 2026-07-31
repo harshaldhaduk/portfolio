@@ -26,6 +26,12 @@ export const projects: Project[] = [
     ],
     tags: ['.NET 8', 'Stencil.js', 'Oracle', 'Redis', 'TypeScript'],
     links: [],
+    // A logo card, not a screenshot. The real interface lists dealer names, IDs
+    // and addresses for tens of thousands of entities, none of which can be
+    // published; blurring it would still leave the schema and row counts
+    // legible. Overwatch has no public brand, so this mark stands in for one,
+    // and deliberately carries no employer or product-line name.
+    image: '/shots/overwatch.jpg',
   },
   {
     id: 'clarity',
@@ -38,6 +44,7 @@ export const projects: Project[] = [
     ],
     tags: ['TypeScript', 'Python', 'FastAPI', 'Next.js', 'Supabase', 'YOLOv11'],
     links: [],
+    image: '/shots/clarity.jpg',
   },
   {
     id: 'lattice',
@@ -52,6 +59,26 @@ export const projects: Project[] = [
     links: [
       { label: 'GitHub', href: 'https://github.com/harshaldhaduk/Lattice' },
     ],
+    image: '/shots/lattice.png',
+  },
+  {
+    // Not on the résumé, so every field here comes from the public repository
+    // rather than from a bullet: created 2026-03-24 and last pushed 2026-07-13
+    // (hence the single year), Electron in `main.js` for the menu-bar shell,
+    // an Express + CORS service in Linewatch-Backend, Python for the cookie
+    // refresh, and Firebase from `firebase.json`. Nothing inferred.
+    id: 'linewatch',
+    org: 'Linewatch',
+    title: 'macOS menu bar app',
+    dates: '2026',
+    summary: [
+      'Tracks live sportsbook picks from the menu bar.',
+    ],
+    tags: ['Electron', 'Express.js', 'Python', 'Firebase'],
+    links: [
+      { label: 'GitHub', href: 'https://github.com/harshaldhaduk/Linewatch' },
+    ],
+    image: '/shots/linewatch.png',
   },
   {
     id: 'archai',

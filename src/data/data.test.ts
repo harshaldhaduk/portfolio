@@ -21,7 +21,10 @@ describe('content data', () => {
   it('has the agreed number of entries in each section', () => {
     expect(experience).toHaveLength(6)
     expect(research).toHaveLength(1)
-    expect(projects).toHaveLength(6)
+    // 7, not the original 6: Linewatch was added on request. This number is
+    // pinned deliberately so the curated set cannot creep back toward the full
+    // résumé unnoticed — bump it only for a decision actually taken.
+    expect(projects).toHaveLength(7)
     expect(skills.length).toBeGreaterThanOrEqual(3)
   })
 

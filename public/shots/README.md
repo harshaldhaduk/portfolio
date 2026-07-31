@@ -18,15 +18,24 @@ Drop a screenshot per project here, then point the entry at it.
 
 The leading `/` matters: everything in `public/` is served from the site root.
 
-## The five projects
+## Current state
 
-| `id` | Project | suggested filename |
+| `id` | Project | file |
 | --- | --- | --- |
-| `overwatch` | Overwatch | `/shots/overwatch.png` |
-| `clarity` | Clarity | `/shots/clarity.png` |
-| `lattice` | Lattice | `/shots/lattice.png` |
-| `calmcampus` | CalmCampus | `/shots/calmcampus.png` |
-| `echotrade` | EchoTrade | `/shots/echotrade.png` |
+| `overwatch` | Overwatch | `overwatch.jpg` — logo card, see below |
+| `clarity` | Clarity | `clarity.jpg` |
+| `lattice` | Lattice | `lattice.png` |
+| `linewatch` | Linewatch | `linewatch.png` |
+| `archai` | Archai | `archai.png` |
+| `calmcampus` | CalmCampus | **still needed** |
+| `echotrade` | EchoTrade | `echotrade.png` |
+
+`overwatch.jpg` is a logo card rather than a screenshot, because the real
+interface lists dealer names, IDs and addresses for tens of thousands of
+entities. It was rendered from `overwatch-logo.html` (kept out of the repo) in a
+headless browser rather than written as an SVG, because an SVG loaded through
+`<img>` cannot fetch the Google Fonts stylesheet and the wordmark would fall
+back to whatever sans the visitor happens to have installed.
 
 ## What works
 
@@ -44,6 +53,15 @@ The leading `/` matters: everything in `public/` is served from the site root.
 
 ## If an entry has no image
 
-The card renders alone with no empty frame beneath it — no placeholder, no
-broken-image icon. Columns stay aligned because the text card absorbs the height
-difference, so a partially-filled set does not look broken.
+The frame still renders, as an empty bordered box. That is deliberate: the frame
+sits above the text and is the element every column aligns to, so dropping it for
+one project would knock the whole row out of register. An empty frame reads as an
+empty slot, which is what it is — but it is conspicuous, so it is worth filling.
+
+## Art that is not already 16:10
+
+16:9 art centre-crops by about 5% per side, which is enough to clip a corner
+badge (Clarity's WINNER ribbon sits right in that band). Rather than crop, the
+16:9 sources here were padded to 16:10 by stretching their own first and last
+pixel row into bars — seamless for art whose edges are a flat colour or a
+vertical gradient. A window screenshot near 16:10 needs none of this.
