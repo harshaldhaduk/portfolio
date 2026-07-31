@@ -39,7 +39,7 @@ export function EntryBody({
 
       <ul className="mt-3 space-y-2">
         {entry.summary.map((line) => (
-          <li key={line} className="text-sm leading-relaxed text-ink/80">
+          <li key={line} className="max-w-[64ch] text-sm leading-relaxed text-ink/80">
             {line}
           </li>
         ))}

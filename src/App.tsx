@@ -29,7 +29,7 @@ export default function App() {
           container classes live on this wrapper div instead, so <main>
           wraps only the five sections in between and all three landmarks
           resolve correctly. */}
-      <div className="mx-auto max-w-3xl px-6 py-16 sm:py-20">
+      <div className="mx-auto max-w-5xl px-6 py-16 sm:py-20">
         <Hero ready={!loading} />
         <main>
           <MissionLog />

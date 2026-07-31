@@ -123,7 +123,11 @@ function ProjectsPinned() {
   const deck = useProjectsPin(pinRef, viewportRef, trackRef)
 
   return (
-    <div ref={pinRef}>
+    // Full viewport height with its contents centred: this is what stops the
+    // leftover vertical space piling up beneath the deck. The box is what gets
+    // pinned, the content sits in the middle of it, so the slack is shared
+    // between above and below and reads as breathing room rather than a gap.
+    <div ref={pinRef} className="flex min-h-screen flex-col justify-center">
       {/* Inside the pinned element on purpose: the label stays with the deck
           for the whole hold, so the section reads as one held unit instead of
           a row of cards floating alone once the header has scrolled off. */}

@@ -97,14 +97,16 @@ export function useProjectsPin(
       ease: 'none',
       scrollTrigger: {
         trigger: pin,
-        // Not 'top top'. Pinning flush to the viewport top meant the section
-        // header had already scrolled away by the time the pin engaged, leaving
-        // the cards stranded at the very top of an otherwise empty viewport —
-        // it read as a layout bug rather than a deliberate hold. Engaging at
-        // 18% down starts the travel earlier, while the section is still framed
-        // by space above it, and the header is inside the pinned element so it
-        // stays with the deck for the whole hold.
-        start: 'top 18%',
+        // 'top top' is correct *because* the pinned element is a full-viewport
+        // box with its contents vertically centred (see Projects.tsx). The
+        // element's top meeting the viewport top therefore puts the cards in
+        // the middle of the screen, not jammed against the edge — so the pin
+        // engages early in terms of where the content appears, and whatever
+        // vertical space is left over splits evenly above and below instead of
+        // collecting into a void underneath. An earlier attempt used a
+        // percentage offset with an auto-height box, which anchored the block
+        // near the top and dumped all the slack below it.
+        start: 'top top',
         end: () => `+=${distance()}`,
         scrub: true,
         pin: true,
