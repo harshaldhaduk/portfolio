@@ -1,0 +1,175 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-void: #05070f;
+  --color-panel: #0a0e1a;
+  --color-hairline: #1b2333;
+  --color-ink: #e8edf7;
+  --color-muted: #8b96ad;
+  --color-dwarf: #a9c8ff;
+  --color-ember: #ffb35c;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  background-color: var(--color-void);
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  /* Deliberately NO background-color. The starfield canvas is z-index: -10, and
+     CSS paints negative-z-index children before the backgrounds of in-flow
+     descendants — so an opaque fill here covers the canvas completely. That bug
+     hid the starfield on the real page for the whole build while every check
+     passed, because they all read the canvas buffer rather than the composited
+     page. The page background comes from `html` above, which paints as the
+     viewport backdrop behind the canvas. */
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scroll reveal. Elements start shifted and transparent as a no-JS/pre-JS
+   baseline; useSectionReveal's GSAP timeline now owns the actual animation
+   (opacity/transform tweened every frame via inline style) and calls
+   markRevealed when it starts, so there is deliberately NO transition here
+   any more — a CSS transition watching the same properties would retrigger
+   on every inline-style update GSAP makes and fight its own easing. GSAP
+   clears its inline styles on completion (`clearProps: 'all'`), handing the
+   resting state back to the rule below. */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+[data-reveal][data-revealed='true'] {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Shared link hover: an underline that sweeps in from the left rather than a
+   flat colour swap, with a matching :focus-visible state so keyboard users
+   get the same affordance as a mouse hover. The always-on underline beneath
+   (hairline colour) keeps links distinguishable at rest without relying on
+   colour alone. */
+.link-sweep {
+  position: relative;
+  text-decoration: underline;
+  text-decoration-color: var(--color-hairline);
+  text-underline-offset: 4px;
+  transition: color 200ms ease;
+}
+
+.link-sweep::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: -4px;
+  height: 1px;
+  background: var(--color-dwarf);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.link-sweep:hover,
+.link-sweep:focus-visible {
+  color: var(--color-dwarf);
+  text-decoration-color: transparent;
+}
+
+.link-sweep:hover::after,
+.link-sweep:focus-visible::after {
+  transform: scaleX(1);
+}
+
+.link-sweep:focus-visible {
+  outline: 2px solid var(--color-dwarf);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+/* Expand (LogEntry/EntryBody's <details>): animate the detail paragraph's
+   height open instead of snapping, without touching the native
+   <details>/<summary> markup or behaviour. `::details-content` and
+   `interpolate-size` are recent additions (Chromium-only at time of writing);
+   unsupported browsers simply keep the native instant toggle, so this is a
+   progressive enhancement, not a requirement. The blanket
+   `transition-duration: 0.01ms` under reduced motion above already
+   neutralises this without any extra rule needed here. */
+details {
+  interpolate-size: allow-keywords;
+}
+
+details::details-content {
+  height: 0;
+  overflow: hidden;
+  transition:
+    height 300ms cubic-bezier(0.16, 1, 0.3, 1),
+    content-visibility 300ms allow-discrete;
+}
+
+details[open]::details-content {
+  height: auto;
+}
+
+/* Card deck (Projects). The scrollbar is hidden deliberately: a visible
+   horizontal scrollbar is the thing that made this read as dated. Hiding it is
+   only acceptable because the affordance moved somewhere better — real
+   prev/next buttons and a position indicator — rather than disappearing. The
+   element is still natively scrollable, so trackpad, swipe, shift+wheel and
+   arrow keys all keep working. */
+.deck-scroller {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.deck-scroller::-webkit-scrollbar {
+  display: none;
+}
+
+.deck-button {
+  font-size: 0.8rem;
+  line-height: 1;
+  color: var(--color-muted);
+  border: 1px solid var(--color-hairline);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.7rem;
+  transition:
+    color 200ms ease,
+    border-color 200ms ease,
+    transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.deck-button:hover:not(:disabled),
+.deck-button:focus-visible:not(:disabled) {
+  color: var(--color-dwarf);
+  border-color: color-mix(in oklab, var(--color-dwarf) 45%, transparent);
+  transform: translateY(-1px);
+}
+
+.deck-button:focus-visible {
+  outline: 2px solid var(--color-dwarf);
+  outline-offset: 3px;
+}
+
+.deck-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}

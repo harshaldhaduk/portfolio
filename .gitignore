@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.DS_Store
+.vercel/
+test-results/
+playwright-report/
+blob-report/
+
+# Planning docs stay local: they name employer-internal infrastructure.
+docs/superpowers/
