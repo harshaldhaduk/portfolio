@@ -21,7 +21,7 @@ describe('content data', () => {
   it('has the agreed number of entries in each section', () => {
     expect(experience).toHaveLength(6)
     expect(research).toHaveLength(1)
-    expect(projects).toHaveLength(5)
+    expect(projects).toHaveLength(6)
     expect(skills.length).toBeGreaterThanOrEqual(3)
   })
 

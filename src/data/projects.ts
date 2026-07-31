@@ -54,6 +54,24 @@ export const projects: Project[] = [
     ],
   },
   {
+    id: 'archai',
+    org: 'Archai',
+    title: 'Codebase analysis tool',
+    // Dates taken from the repository itself (created 2025-10-21, last pushed
+    // 2026-02-13) rather than invented — the resume gives no year for this one.
+    dates: '2025 — 2026',
+    summary: [
+      'Cut new-hire onboarding ~60% via AST parsing.',
+    ],
+    tags: ['React', 'Tailwind', 'Node.js', 'Docker', 'Terraform'],
+    links: [
+      { label: 'GitHub', href: 'https://github.com/harshaldhaduk/Archai' },
+    ],
+    image: '/shots/archai.png',
+    detail:
+      'Parses and condenses GitHub repositories into interactive architecture breakdowns, inferring how services relate rather than just listing files, which is what cut onboarding time for new hires by roughly 60%. Interactive breakdowns were built with Radix UI and Sonner, with lazy-loading so repositories over 100K lines render without stalling. CI/CD ran on Docker and Terraform for automated analysis, serving 6+ clients and generating $1.2K+ in paid contracts.',
+  },
+  {
     id: 'calmcampus',
     org: 'CalmCampus',
     title: 'iOS app',
