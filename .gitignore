@@ -8,3 +8,5 @@ blob-report/
 
 # Planning docs stay local: they name employer-internal infrastructure.
 docs/superpowers/
+.vercel
+.env*
