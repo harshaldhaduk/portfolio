@@ -40,7 +40,7 @@ describe('Preloader', () => {
   it('renders every element the timeline animates', () => {
     stubMatchMedia(false)
     const { container } = render(<Preloader onDone={vi.fn()} />)
-    for (const hook of ['bar', 'fill', 'flash', 'shock', 'digits']) {
+    for (const hook of ['bar', 'fill', 'burst', 'digits']) {
       expect(
         container.querySelector(`[data-preloader-${hook}]`),
         `missing [data-preloader-${hook}]`,

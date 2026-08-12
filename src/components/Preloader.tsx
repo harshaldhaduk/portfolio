@@ -36,6 +36,128 @@ const LOAD_DURATION = 0.7
 const COUNT_STEPS = 50
 
 /**
+ * Builds the detonation renderer for a canvas, returning a draw function that
+ * takes progress 0-1.
+ *
+ * Drawn rather than composed from CSS gradients because a scaled radial
+ * gradient always reads as exactly what it is — a circle with a visible
+ * boundary, however soft the falloff. What sells an explosion is the absence
+ * of a clean edge, so the silhouette here is broken up three ways: rays of
+ * differing length and width fire past the core, sparks scatter to varying
+ * distances, and every element carries its own small start delay so nothing
+ * shares a front. The circular core is still present but never gets to be the
+ * outline, because faster rays and sparks are always outside it.
+ *
+ * `lighter` compositing is what makes overlaps bloom instead of flatly
+ * stacking — where rays cross they sum toward white, which is how real
+ * over-exposed light behaves and is most of why this reads as hot rather than
+ * as painted shapes.
+ */
+function createBurst(canvas: HTMLCanvasElement) {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  const w = canvas.clientWidth || window.innerWidth
+  const h = canvas.clientHeight || window.innerHeight
+  canvas.width = w * dpr
+  canvas.height = h * dpr
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+  const cx = w / 2
+  const cy = h / 2
+  // Reach the corners, so nothing ends mid-screen with a visible frontier.
+  const maxR = Math.hypot(w, h) / 2
+
+  // Rays are seeded on an even angular base with jitter, rather than fully at
+  // random: pure randomness clumps, leaving bald patches that read as a gap in
+  // the explosion rather than as texture.
+  const rays = Array.from({ length: 34 }, (_, i) => ({
+    angle: (i / 34) * Math.PI * 2 + (Math.random() - 0.5) * 0.22,
+    reach: 0.45 + Math.random() * 0.9,
+    width: 1 + Math.random() * 3.5,
+    delay: Math.random() * 0.14,
+  }))
+
+  const sparks = Array.from({ length: 130 }, () => ({
+    angle: Math.random() * Math.PI * 2,
+    reach: 0.28 + Math.random() * 1.0,
+    size: 0.6 + Math.random() * 1.9,
+    delay: Math.random() * 0.18,
+  }))
+
+  /** Progress for an element that starts late, renormalised to its own 0-1. */
+  const staggered = (t: number, delay: number) =>
+    delay >= 1 ? 0 : Math.max(0, (t - delay) / (1 - delay))
+
+  return (t: number) => {
+    ctx.clearRect(0, 0, w, h)
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.lineCap = 'round'
+
+    // Core. Fades faster than it grows so it is spent by the time the rays
+    // are at full extension — a core that outlives them looks like a balloon.
+    const coreT = 1 - Math.pow(1 - t, 3)
+    const coreR = maxR * coreT * 0.52
+    const coreA = Math.max(0, 1 - t * 1.15)
+    if (coreR > 0 && coreA > 0) {
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR)
+      g.addColorStop(0, `rgba(255,255,255,${coreA})`)
+      g.addColorStop(0.32, `rgba(216,233,255,${coreA * 0.5})`)
+      g.addColorStop(1, 'rgba(169,200,255,0)')
+      ctx.fillStyle = g
+      ctx.beginPath()
+      ctx.arc(cx, cy, coreR, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    for (const ray of rays) {
+      const rt = staggered(t, ray.delay)
+      if (rt <= 0) continue
+      const ease = 1 - Math.pow(1 - rt, 4)
+      const inner = maxR * ease * 0.1
+      const outer = maxR * ease * ray.reach
+      const alpha = Math.max(0, 1 - rt * 1.25)
+      if (alpha <= 0) continue
+      ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.7})`
+      ctx.lineWidth = Math.max(0.4, ray.width * (1 - rt * 0.7))
+      ctx.beginPath()
+      ctx.moveTo(cx + Math.cos(ray.angle) * inner, cy + Math.sin(ray.angle) * inner)
+      ctx.lineTo(cx + Math.cos(ray.angle) * outer, cy + Math.sin(ray.angle) * outer)
+      ctx.stroke()
+    }
+
+    for (const spark of sparks) {
+      const st = staggered(t, spark.delay)
+      if (st <= 0) continue
+      const ease = 1 - Math.pow(1 - st, 3)
+      const dist = maxR * ease * spark.reach
+      const alpha = Math.max(0, 1 - st * 1.1)
+      if (alpha <= 0) continue
+      ctx.fillStyle = `rgba(228,241,255,${alpha})`
+      ctx.beginPath()
+      ctx.arc(
+        cx + Math.cos(spark.angle) * dist,
+        cy + Math.sin(spark.angle) * dist,
+        Math.max(0.3, spark.size * (1 - st * 0.5)),
+        0,
+        Math.PI * 2,
+      )
+      ctx.fill()
+    }
+
+    // There is deliberately no stroked shockwave ring. One was tried and it
+    // was the single worst thing on screen: a crisp arc is unambiguously a
+    // circle, so it re-introduced exactly the hard geometric edge this whole
+    // renderer exists to avoid, and being the only continuous line it drew the
+    // eye straight to it. The expanding front is instead implied by the rays
+    // and sparks arriving at different radii, which leaves no traceable
+    // outline anywhere in the frame.
+    ctx.globalCompositeOperation = 'source-over'
+  }
+}
+
+/**
  * First-load preloader: a white bar fills, collapses to a single point, and
  * detonates into a white flash that dissipates to uncover the page — a big
  * bang, with the site as what the bang leaves behind.
@@ -89,13 +211,13 @@ export function Preloader({ onDone }: { onDone: () => void }) {
     if (el) {
       const bar = el.querySelector<HTMLElement>('[data-preloader-bar]')
       const fill = el.querySelector<HTMLElement>('[data-preloader-fill]')
-      const flash = el.querySelector<HTMLElement>('[data-preloader-flash]')
-      const shock = el.querySelector<HTMLElement>('[data-preloader-shock]')
+      const burstCanvas = el.querySelector<HTMLCanvasElement>('[data-preloader-burst]')
       const digits = el.querySelector<HTMLElement>('[data-preloader-digits]')
+      const drawBurst = burstCanvas ? createBurst(burstCanvas) : null
 
       tl = gsap.timeline({ onComplete: finish })
 
-      if (bar && fill && flash && shock && digits) {
+      if (bar && fill && digits && drawBurst) {
         // Counts one integer at a time — 0, 1, 2 … 100 — rather than handing
         // NumberFlow the endpoint and letting it roll straight there.
         // `steps(COUNT_STEPS)` is what makes that literal: the tween advances in
@@ -149,23 +271,20 @@ export function Preloader({ onDone }: { onDone: () => void }) {
           // outrunning it. The core peaks and holds while the ring keeps
           // travelling, so the light appears to *leave* the point of collapse
           // rather than simply grow from it.
-          .fromTo(
-            flash,
-            { scale: 0, opacity: 1 },
-            { scale: 1, duration: 0.28, ease: 'expo.out' },
-            '>-0.04',
-          )
-          .fromTo(
-            shock,
-            { scale: 0, opacity: 0.9, borderWidth: 3 },
+          // The burst is one tween of plain progress; every layer's shape,
+          // timing and falloff lives in the renderer rather than being split
+          // across competing tweens on separate DOM nodes.
+          .to(
+            { p: 0 },
             {
-              scale: 13,
-              opacity: 0,
-              borderWidth: 0.5,
-              duration: 0.62,
-              ease: 'expo.out',
+              p: 1,
+              duration: 0.72,
+              ease: 'none',
+              onUpdate() {
+                drawBurst(this.targets()[0].p as number)
+              },
             },
-            '<',
+            '>-0.04',
           )
           // Dissipate, uncovering the page underneath. Overlaps the shockwave's
           // tail so the reveal is part of the same gesture, not a beat after it.
@@ -242,23 +361,12 @@ export function Preloader({ onDone }: { onDone: () => void }) {
           The gradient falls off to transparent well before the edge, so the
           bang keeps a bright core with a soft shoulder instead of reading as
           a flat white rectangle. */}
-      {/* The shockwave. Starts at the size the collapsed bar leaves behind and
-          outruns the core, which is what reads as an explosion rather than a
-          disc simply growing. */}
-      <span
-        data-preloader-shock
-        className="pointer-events-none absolute inset-0 m-auto h-24 w-24 scale-0 rounded-full border-[3px] border-white opacity-0"
-      />
-      <span
-        data-preloader-flash
-        // `inset-0 m-auto` centres this rather than a translate would, because
-        // GSAP writes `transform` wholesale when it scales the burst and would
-        // overwrite any centring translate sitting in the class list.
-        className="pointer-events-none absolute inset-0 m-auto h-[160vmax] w-[160vmax] scale-0 rounded-full opacity-0"
-        style={{
-          background:
-            'radial-gradient(circle, #ffffff 0%, #ffffff 26%, rgba(169,200,255,0.55) 52%, rgba(169,200,255,0) 72%)',
-        }}
+      {/* Full-bleed so rays and sparks can run off every edge instead of
+          stopping at a box boundary. */}
+      <canvas
+        data-preloader-burst
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 h-full w-full"
       />
     </div>
   )
