@@ -31,14 +31,46 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* NumberFlow fades its digits out at the top and bottom of the rolling window
+   by masking with a vertical gradient, which reads as a shadow across the
+   number. Zeroing the mask height removes that fade.
+
+   That mask was doing two jobs at once, though: as well as the fade it was
+   what hid the spare digits NumberFlow parks above and below the current one
+   mid-spin. Removing it alone leaves those neighbours on screen, so the
+   wrapper takes over the clipping with `overflow: hidden` (see Preloader).
+
+   Set on the wrapper rather than inside the component because custom
+   properties inherit through shadow DOM, which is the only way to reach
+   NumberFlow's internal styles. `--number-flow-mask-width` is deliberately
+   left alone — that one masks the left/right edges, where the fade is doing
+   useful work as digit columns are added and removed. */
+[data-preloader-digits] {
+  --number-flow-mask-height: 0;
+}
+
+/* The blue dot in CursorRing stands in for the pointer, so the real one is
+   hidden while it is on screen. Scoped to a class the component adds and
+   removes itself, never applied blind: on a touch device or under reduced
+   motion CursorRing renders nothing, and hiding the system cursor with no
+   replacement would leave the visitor with no pointer at all. The descendant
+   selector is needed because elements setting their own `cursor` (the orbit
+   scene's grab handle, text inputs) would otherwise reinstate it. */
+.has-custom-cursor,
+.has-custom-cursor * {
+  cursor: none !important;
+}
+
 /* Scroll reveal. Elements start shifted and transparent as a no-JS/pre-JS
    baseline; useSectionReveal's GSAP timeline now owns the actual animation
    (opacity/transform tweened every frame via inline style) and calls
    markRevealed when it starts, so there is deliberately NO transition here
    any more — a CSS transition watching the same properties would retrigger
-   on every inline-style update GSAP makes and fight its own easing. GSAP
-   clears its inline styles on completion (`clearProps: 'all'`), handing the
-   resting state back to the rule below. */
+   on every inline-style update GSAP makes and fight its own easing. The
+   reveal tween clears its inline styles on completion (`clearProps: 'all'`),
+   handing the revealed resting state back to the rule below; the hide tween
+   deliberately keeps its end state inline so a re-reveal still has an
+   explicit opacity 0 to animate up from (see useSectionReveal). */
 [data-reveal] {
   opacity: 0;
   transform: translateY(12px);

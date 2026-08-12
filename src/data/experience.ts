@@ -16,6 +16,7 @@ export const experience: Entry[] = [
     mark: 'PwC',
     logo: '/logos/pwc.svg',
     logoBg: '#feeae3',
+    logoPad: '4px',
     title: 'Incoming Software Engineering Intern',
     dates: 'Sept 2026',
     location: 'Austin, TX',

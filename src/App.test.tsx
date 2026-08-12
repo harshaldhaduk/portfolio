@@ -65,6 +65,12 @@ describe('App', () => {
     // recognised here fails, including destinations nobody anticipated.
     const ALLOWED = [
       /^https:\/\/github\.com\/harshaldhaduk(\/|$)/,
+      // Team project on a collaborator's account — pinned to the one repo.
+      /^https:\/\/github\.com\/bruhlol108\/Clarity$/,
+      /^https:\/\/devpost\.com\/software\/[a-z0-9-]+$/,
+      // The research paper, hosted on Drive. Pinned to the file-view path so
+      // the allowlist admits this one document rather than all of Drive.
+      /^https:\/\/drive\.google\.com\/file\/d\/[\w-]+\/view(\?[\w=&-]*)?$/,
       /^https:\/\/www\.linkedin\.com\/in\/harshaldhaduk(\/|$)/,
       /^mailto:[^@\s]+@[^@\s]+$/,
       /^\/[^/]/,

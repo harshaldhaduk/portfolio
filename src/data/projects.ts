@@ -43,7 +43,10 @@ export const projects: Project[] = [
       'Dementia computer-vision app using YOLOv11 and Gemini.',
     ],
     tags: ['TypeScript', 'Python', 'FastAPI', 'Next.js', 'Supabase', 'YOLOv11'],
-    links: [],
+    links: [
+      { label: 'GitHub', href: 'https://github.com/bruhlol108/Clarity' },
+      { label: 'Devpost', href: 'https://devpost.com/software/clarity-lxbwpt' },
+    ],
     image: '/shots/clarity.jpg',
   },
   {
@@ -84,9 +87,7 @@ export const projects: Project[] = [
     id: 'archai',
     org: 'Archai',
     title: 'Codebase analysis tool',
-    // Dates taken from the repository itself (created 2025-10-21, last pushed
-    // 2026-02-13) rather than invented — the resume gives no year for this one.
-    dates: '2025 — 2026',
+    dates: '2025',
     summary: [
       'Cut new-hire onboarding ~60% via AST parsing.',
     ],
@@ -111,6 +112,7 @@ export const projects: Project[] = [
     links: [
       { label: 'GitHub', href: 'https://github.com/harshaldhaduk/CalmCampus' },
     ],
+    image: '/shots/calmcampus.png',
   },
   {
     id: 'echotrade',

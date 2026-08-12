@@ -11,40 +11,75 @@ const CURVE_SAMPLES = 200
 const STAR_COLOR = '#a9c8ff'
 /** Planet rotation period. Deliberately not a divisor of PERIOD_MS, so the
  *  banding never looks frozen relative to the transit. */
-const SPIN_MS = 4200
-/** Fixed spin for the reduced-motion frame, so that render stays deterministic
- *  for the visual-regression baseline. */
-const STATIC_SPIN = 1.1
+export const SPIN_MS = 4200
 /** Fixed instant for the reduced-motion frame. The window spans 1.6 periods
  *  ending here, so a transit centred at 0.5 * PERIOD_MS lands well inside the
  *  chart rather than clipped at an edge — and the render stays deterministic
  *  for the visual-regression baseline. */
 const STATIC_NOW_MS = PERIOD_MS * 1.1
-/** Vertical semi-axis of the orbit ellipse, as a fraction of starR. Small
- * enough that the transiting body (bodyR = 0.28 * starR) still overlaps the
- * disc at inferior conjunction (bodyR + this < starR), but large enough that
- * the ellipse reads as tilted-into-the-screen rather than a flat line. */
-const VERT_EXTENT_RATIO = 0.35
 
 /**
- * Normalised flux, 1 = unobscured. Linear ramp through ingress/egress.
- * `front` gates the whole effect: a body behind the star (the back half of
- * its orbit) cannot block the star's light no matter how close it appears
- * in projection, so front=false always returns 1. Defaults to true so
- * existing callers/tests that only care about the horizontal geometry (and
- * predate the orbit) are unaffected.
- * Exported (pure, no closures) so the dip-synchronisation maths can be
- * tested directly rather than through pixel output.
+ * Scene geometry, in the 3D scene's own units.
+ *
+ * These live here rather than in `OrbitScene` because the light curve and the
+ * orbit have to agree about them exactly — the curve's transit depth is
+ * `(planetRadius / starRadius)^2` and its dip only exists while the planet's
+ * projected separation falls under `starRadius + planetRadius`. Two copies of
+ * these numbers would let the chart claim a transit the visible orbit is not
+ * performing. `OrbitScene` imports them, so there is one source of truth and
+ * the dependency runs in one direction.
  */
-export function fluxAt(
-  bodyX: number,
-  starX: number,
+export const ORBIT_RADIUS = 3.2
+export const STAR_RADIUS = 0.62
+export const PLANET_RADIUS = STAR_RADIUS * 0.28
+
+/**
+ * Camera elevation above the orbital plane, in radians, at rest.
+ *
+ * Deliberately tiny. The orbit has to sit close enough to edge-on that the
+ * planet still crosses the stellar disc — the transit only exists while
+ * `ORBIT_RADIUS * sin(elevation) < STAR_RADIUS + PLANET_RADIUS` — and this is
+ * also the angle the flat 2D version of this graphic was drawn at, so the
+ * resting pose matches what the page looked like before it became
+ * interactive. It is not zero because a perfectly edge-on circle projects to
+ * a bare line, which reads as a mistake rather than as an orbit.
+ *
+ * Lives here rather than with the scene that uses it so that `Hero` can seed
+ * its elevation ref, and the tests can assert the resting angle still
+ * transits, without either of them importing three.js.
+ */
+export const REST_ELEVATION = 0.1
+
+/**
+ * Where the camera is looking from, in the orbit's own frame: `azimuth` is its
+ * bearing around the orbit, `elevation` its height above the orbital plane.
+ * Owned by the 3D scene and read by the light curve, which needs both — see
+ * {@link projectedSeparation}.
+ */
+export type OrbitView = { elevation: number; azimuth: number }
+
+export const REST_VIEW: OrbitView = { elevation: REST_ELEVATION, azimuth: 0 }
+
+/**
+ * Normalised flux, 1 = unobscured, from the planet's projected separation
+ * from the star's centre. Smoothstep ramp through ingress/egress.
+ *
+ * `front` gates the whole effect: a body behind the star (the back half of
+ * its orbit) cannot block the star's light no matter how close it appears in
+ * projection, so front=false always returns 1.
+ *
+ * Taking a separation rather than a pair of x coordinates is what lets the
+ * same function serve the tilted case: once the orbit can be viewed from
+ * above, the planet misses the disc vertically as well as horizontally, and
+ * only the true 2D separation decides whether any light is blocked.
+ */
+export function fluxAtSeparation(
+  d: number,
   starR: number,
   bodyR: number,
   front = true,
 ): number {
   if (!front) return 1
-  const d = Math.abs(bodyX - starX)
   const depth = (bodyR * bodyR) / (starR * starR)
   if (d >= starR + bodyR) return 1
   if (d <= starR - bodyR) return 1 - depth
@@ -61,6 +96,21 @@ export function fluxAt(
 }
 
 /**
+ * Normalised flux for a body at `bodyX` against a star at `starX`, i.e. the
+ * purely horizontal (perfectly edge-on) case. Retained as the edge-on
+ * specialisation of {@link fluxAtSeparation}.
+ */
+export function fluxAt(
+  bodyX: number,
+  starX: number,
+  starR: number,
+  bodyR: number,
+  front = true,
+): number {
+  return fluxAtSeparation(Math.abs(bodyX - starX), starR, bodyR, front)
+}
+
+/**
  * The orbit: a circle of radius `travel / 2` seen nearly edge-on. `angle`
  * is offset by pi/2 so that phase 0 lands the body directly behind the star
  * (occultation, centred) and phase 0.5 lands it directly in front (transit,
@@ -69,37 +119,86 @@ export function fluxAt(
  * full lap reads as: behind -> left -> in front (transiting) -> right ->
  * behind again, continuously, with no reset.
  */
-function orbitAngle(phase: number): number {
+export function orbitAngle(phase: number): number {
   return phase * Math.PI * 2 + Math.PI / 2
 }
 
-/** Line-of-sight sign: positive = in front of the star (toward the
- * viewer), negative = behind it. Zero only at the far left/right of the
- * orbit, where the body is nowhere near the star and draw order is moot. */
-function orbitZAt(phase: number): number {
-  return -Math.sin(orbitAngle(phase))
+/**
+ * Line-of-sight sign: positive = between the camera and the star, negative =
+ * behind it.
+ *
+ * Generalised over `azimuth`, the camera's bearing around the orbit. Swinging
+ * the camera horizontally changes *which* stretch of the orbit is nearest to
+ * it, and therefore at what phase the planet passes in front — so conjunction
+ * is not pinned to one moment in the period, it slides as you orbit the
+ * camera. Elevation cannot flip this sign (it only scales the whole thing by
+ * cos(elevation), positive throughout the usable range), which is why only
+ * azimuth appears here.
+ *
+ * At azimuth 0 this is exactly -sin(theta), the original head-on case.
+ */
+function orbitZAt(phase: number, azimuth = 0): number {
+  return Math.sin(azimuth - orbitAngle(phase))
 }
 
-function isFrontPass(phase: number): boolean {
-  return orbitZAt(phase) >= 0
+function isFrontPass(phase: number, azimuth = 0): boolean {
+  return orbitZAt(phase, azimuth) >= 0
+}
+
+/**
+ * How far the planet appears from the star's centre, as seen from
+ * `elevation` radians above the orbital plane.
+ *
+ * Edge-on (elevation 0) the orbit collapses to a horizontal line and the
+ * separation is purely the horizontal one, reproducing the flat case exactly.
+ * As the camera climbs, the orbit's near/far extent starts projecting into
+ * vertical screen offset — scaled by sin(elevation) — so at conjunction the
+ * planet rides above or below the disc instead of across it. That is the
+ * whole reason the dip fades out as you rotate the scene: past
+ * `asin((starR + bodyR) / a)` the planet simply never touches the disc.
+ */
+export function projectedSeparation(
+  phase: number,
+  a: number,
+  elevation: number,
+  azimuth = 0,
+): number {
+  // The planet's distance from the view axis: |P|^2 - (P . viewDir)^2 for a
+  // point on a circle of radius `a`, seen from (azimuth, elevation). The dot
+  // product collapses to a*cos(elevation)*sin(azimuth - theta), leaving
+  // a^2 * (1 - cos^2(elevation) * sin^2(azimuth - theta)).
+  //
+  // Both angles matter and they do different jobs: azimuth decides *when* the
+  // planet lines up with the star, elevation decides *how close* it gets when
+  // it does. Dropping either one pins the transit to a single fixed viewpoint.
+  const s = Math.sin(azimuth - orbitAngle(phase))
+  const c = Math.cos(elevation)
+  return a * Math.sqrt(Math.max(0, 1 - c * c * s * s))
 }
 
 /**
  * Flux at a given orbital phase — composes the orbit geometry above with
- * `fluxAt`, gating the dip to the front pass. This is the single function
- * that answers "does the light curve dip here", used both to build the
- * phase-folded curve and to test the core physics directly.
+ * {@link fluxAtSeparation}, gating the dip to the front pass. This is the
+ * single function that answers "does the light curve dip here", used both to
+ * build the phase-folded curve and to test the core physics directly.
+ *
+ * `elevation` defaults to 0 (perfectly edge-on), so callers written against
+ * the flat version are unaffected.
  */
 export function fluxAtPhase(
   phase: number,
-  starX: number,
+  // Unused since the separation is computed from the orbit's own radius
+  // rather than from screen coordinates, but kept in place so the positional
+  // signature every existing caller and test uses still resolves.
+  _starX: number,
   starR: number,
   bodyR: number,
   travel: number,
+  elevation = 0,
+  azimuth = 0,
 ): number {
-  const angle = orbitAngle(phase)
-  const bodyX = starX + (travel / 2) * Math.cos(angle)
-  return fluxAt(bodyX, starX, starR, bodyR, isFrontPass(phase))
+  const d = projectedSeparation(phase, travel / 2, elevation, azimuth)
+  return fluxAtSeparation(d, starR, bodyR, isFrontPass(phase, azimuth))
 }
 
 /**
@@ -145,16 +244,34 @@ export function fluxAtTime(
   starR: number,
   bodyR: number,
   travel: number,
+  elevation = 0,
+  azimuth = 0,
 ): number {
   const phase = ((timeMs % PERIOD_MS) + PERIOD_MS) / PERIOD_MS % 1
   const depth = (bodyR * bodyR) / (starR * starR)
   return (
-    fluxAtPhase(phase, starX, starR, bodyR, travel) +
+    fluxAtPhase(phase, starX, starR, bodyR, travel, elevation, azimuth) +
     photometricNoise(timeMs) * depth * NOISE_FRACTION
   )
 }
 
-export function Transit() {
+/**
+ * The photometric trace under the orbit: a strip chart of the star's
+ * brightness, scrolling right to left, dipping each time the planet crosses
+ * the disc.
+ *
+ * Reads `viewRef` fresh on every frame rather than taking the angle as a
+ * prop. The orbit scene above publishes the viewing elevation there while the
+ * visitor drags, and threading that through React state would re-render the
+ * hero on every frame of a drag to move a single number. The visible payoff is
+ * that rotating the orbit away from edge-on visibly flattens the dip here,
+ * because past a certain angle the planet genuinely stops occulting the star.
+ */
+export function Transit({
+  viewRef,
+}: {
+  viewRef?: React.RefObject<OrbitView>
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const reduced = usePrefersReducedMotion()
 
@@ -166,196 +283,100 @@ export function Transit() {
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
     let width = canvas.clientWidth || 320
-    let height = canvas.clientHeight || 260
-    let starR = 0
-    let bodyR = 0
-    let starX = 0
-    let starY = 0
-    let travel = 0
-    let vertExtent = 0
-    let starGradient: CanvasGradient | null = null
-    let orbitPathPoints: { x: number; y: number }[] = []
+    let height = canvas.clientHeight || 110
 
-    function bodyXAt(phase: number): number {
-      return starX + (travel / 2) * Math.cos(orbitAngle(phase))
+    // Scene units, not pixels: the curve describes the same system the 3D
+    // orbit is drawing, so it uses that system's geometry directly and is
+    // independent of how large this canvas happens to be.
+    const starR = STAR_RADIUS
+    const bodyR = PLANET_RADIUS
+    const travel = ORBIT_RADIUS * 2
+
+    function currentView(): OrbitView {
+      return viewRef?.current ?? { elevation: 0, azimuth: 0 }
     }
 
-    function bodyYAt(phase: number): number {
-      return starY + vertExtent * Math.sin(orbitAngle(phase))
+    /**
+     * The trace is *recorded*, not recomputed.
+     *
+     * Each slot is written once, using the viewing angle that was current at
+     * that instant, and is never revisited. Rebuilding the whole window from
+     * the current angle every frame — the obvious implementation, and the one
+     * this replaced — meant rotating the orbit retroactively rewrote the
+     * measurements to the left of the leading edge, as though the observatory
+     * had always been pointed the new way. A strip chart of past observations
+     * cannot do that: turning the telescope now can only affect what arrives
+     * from now on.
+     *
+     * A ring buffer rather than a shifting array, so advancing one slot is a
+     * single write and an index bump instead of moving 200 elements.
+     */
+    const slotMs = WINDOW_MS / (CURVE_SAMPLES - 1)
+    const samples = new Array<number>(CURVE_SAMPLES).fill(1)
+    let oldest = 0
+    let nextSampleAt = 0
+
+    function record(atMs: number, view: OrbitView): number {
+      return fluxAtTime(atMs, 0, starR, bodyR, travel, view.elevation, view.azimuth)
     }
 
-    function buildFluxCurve(nowMs: number): number[] {
-      // Samples run oldest (left) to newest (right) across WINDOW_MS ending at
-      // `nowMs`, so as `nowMs` advances the whole trace slides leftward and new
-      // measurements arrive at the right edge — a strip chart, not a static
-      // folded curve.
-      return Array.from({ length: CURVE_SAMPLES }, (_, i) => {
-        const age = WINDOW_MS * (1 - i / (CURVE_SAMPLES - 1))
-        return fluxAtTime(nowMs - age, starX, starR, bodyR, travel)
-      })
+    function seed(nowMs: number, view: OrbitView) {
+      for (let i = 0; i < CURVE_SAMPLES; i += 1) {
+        samples[i] = record(nowMs - WINDOW_MS + i * slotMs, view)
+      }
+      oldest = 0
+      nextSampleAt = nowMs + slotMs
     }
 
-    function buildOrbitPath() {
-      const segments = 64
-      orbitPathPoints = Array.from({ length: segments + 1 }, (_, i) => {
-        const phase = i / segments
-        return { x: bodyXAt(phase), y: bodyYAt(phase) }
-      })
+    function advance(nowMs: number, view: OrbitView) {
+      // A backgrounded tab resumes with an arbitrary amount of unrecorded
+      // time; reseed rather than grinding out every skipped slot one by one.
+      if (nowMs - nextSampleAt > WINDOW_MS) {
+        seed(nowMs, view)
+        return
+      }
+      while (nextSampleAt <= nowMs) {
+        samples[oldest] = record(nextSampleAt, view)
+        oldest = (oldest + 1) % CURVE_SAMPLES
+        nextSampleAt += slotMs
+      }
+    }
+
+    /** Ring buffer unrolled oldest-first, which is left-to-right on screen. */
+    /**
+     * Reads the ring buffer oldest-first (left-to-right on screen) without
+     * unrolling it into a new array. The previous version allocated a
+     * 200-element array on every single frame purely to be read once and
+     * thrown away, which is pure garbage-collector pressure for a canvas that
+     * redraws sixty times a second.
+     */
+    function sampleAt(i: number): number {
+      return samples[(oldest + i) % CURVE_SAMPLES]
     }
 
     function measure() {
       width = canvas!.clientWidth || 320
-      height = canvas!.clientHeight || 260
+      height = canvas!.clientHeight || 110
       canvas!.width = width * dpr
       canvas!.height = height * dpr
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0)
-      starR = Math.min(width, height) * 0.11
-      bodyR = starR * 0.28
-      starX = width * 0.5
-      starY = height * 0.3
-      travel = width * 0.92
-      vertExtent = starR * VERT_EXTENT_RATIO
-      // Rebuilt only here (on mount/resize), never per frame: the gradient
-      // and the two geometry caches below all depend solely on layout.
-      starGradient = ctx!.createRadialGradient(
-        starX,
-        starY,
-        0,
-        starX,
-        starY,
-        starR * 2.6,
-      )
-      starGradient.addColorStop(0, '#ffffff')
-      starGradient.addColorStop(0.32, STAR_COLOR)
-      starGradient.addColorStop(1, 'rgba(169, 200, 255, 0)')
-      buildOrbitPath()
-      // NOT cached here any more: the trace depends on the instant being drawn,
-      // so it is rebuilt per frame. 200 samples of arithmetic is nothing next
-      // to the 5,000-point starfield already running.
-    }
-
-    function drawStar() {
-      ctx!.fillStyle = starGradient!
-      ctx!.beginPath()
-      ctx!.arc(starX, starY, starR * 2.6, 0, Math.PI * 2)
-      ctx!.fill()
-
-      ctx!.fillStyle = '#ffffff'
-      ctx!.beginPath()
-      ctx!.arc(starX, starY, starR, 0, Math.PI * 2)
-      ctx!.fill()
-    }
-
-    function drawOrbitPath() {
-      ctx!.strokeStyle = 'rgba(169, 200, 255, 0.16)'
-      ctx!.lineWidth = 1
-      ctx!.beginPath()
-      orbitPathPoints.forEach((p, i) => {
-        if (i === 0) ctx!.moveTo(p.x, p.y)
-        else ctx!.lineTo(p.x, p.y)
-      })
-      ctx!.stroke()
     }
 
     /**
-     * Banded gas giant rather than a flat silhouette.
+     * @param frac How far the clock has travelled toward the next sample, 0-1.
      *
-     * It was previously filled with the page background colour, which meant it
-     * vanished against the backdrop on the half of the orbit where it is not
-     * crossing the star. The body has to read in two very different contexts —
-     * silhouetted against a white stellar disc on the front pass, and against a
-     * near-black sky either side of it — so it needs both dark and light tones
-     * rather than one. Alternating near-black and pale blue bands give it
-     * contrast in both.
-     *
-     * `spin` drifts the bands sideways so the planet reads as rotating; the
-     * bands are sine-warped rather than straight so they read as flow rather
-     * than stripes.
+     * This is what keeps the trace scrolling smoothly. A new measurement only
+     * lands every `slotMs` — about 88ms, or roughly eleven times a second — so
+     * drawing the samples at fixed positions makes the whole trace sit still
+     * and then jump a couple of pixels, eleven times a second. That reads as
+     * stutter even though nothing is dropping frames. Sliding the plot left by
+     * the fraction of a slot already elapsed spreads that jump across every
+     * frame in between, so the trace creeps continuously at whatever rate the
+     * display refreshes, without sampling the physics any more often.
      */
-    function drawBody(bodyX: number, bodyY: number, spin: number) {
-      const r = bodyR
-      ctx!.save()
-
-      // Clip everything that follows to the planet's disc.
-      ctx!.beginPath()
-      ctx!.arc(bodyX, bodyY, r, 0, Math.PI * 2)
-      ctx!.clip()
-
-      // Base: deep navy, not pure black, so it never matches the backdrop.
-      ctx!.fillStyle = '#0c1424'
-      ctx!.fillRect(bodyX - r, bodyY - r, r * 2, r * 2)
-
-      // Latitude bands, widest at the equator. Values run dark -> pale so the
-      // planet has internal contrast at any size.
-      const bands: Array<{ from: number; to: number; fill: string }> = [
-        { from: -1.0, to: -0.66, fill: '#0a1120' },
-        { from: -0.66, to: -0.3, fill: '#22456e' },
-        { from: -0.3, to: -0.08, fill: '#8fbde9' },
-        { from: -0.08, to: 0.16, fill: '#0a1120' },
-        { from: 0.16, to: 0.46, fill: '#5b93c9' },
-        { from: 0.46, to: 0.72, fill: '#16294a' },
-        { from: 0.72, to: 1.0, fill: '#7fb2e8' },
-      ]
-
-      const STEPS = 14
-      for (const band of bands) {
-        ctx!.fillStyle = band.fill
-        ctx!.beginPath()
-        for (let i = 0; i <= STEPS; i += 1) {
-          const t = i / STEPS
-          const x = bodyX - r + t * r * 2
-          // Warp each edge with a slow sine so bands curve like flow lines.
-          const warp = Math.sin(t * Math.PI * 2 + spin + band.from * 3) * r * 0.07
-          const y = bodyY + band.from * r + warp
-          if (i === 0) ctx!.moveTo(x, y)
-          else ctx!.lineTo(x, y)
-        }
-        for (let i = STEPS; i >= 0; i -= 1) {
-          const t = i / STEPS
-          const x = bodyX - r + t * r * 2
-          const warp = Math.sin(t * Math.PI * 2 + spin + band.to * 3) * r * 0.07
-          ctx!.lineTo(x, bodyY + band.to * r + warp)
-        }
-        ctx!.closePath()
-        ctx!.fill()
-      }
-
-      // A single darker oval standing in for a storm, drifting with the bands.
-      const stormX = bodyX + Math.cos(spin * 0.6) * r * 0.35
-      ctx!.fillStyle = 'rgba(6, 10, 20, 0.75)'
-      ctx!.beginPath()
-      ctx!.ellipse(stormX, bodyY + r * 0.3, r * 0.26, r * 0.15, 0, 0, Math.PI * 2)
-      ctx!.fill()
-
-      // Limb darkening, so it reads as a sphere and not a disc.
-      const limb = ctx!.createRadialGradient(
-        bodyX - r * 0.25,
-        bodyY - r * 0.25,
-        r * 0.1,
-        bodyX,
-        bodyY,
-        r,
-      )
-      limb.addColorStop(0, 'rgba(255, 255, 255, 0.16)')
-      limb.addColorStop(0.6, 'rgba(0, 0, 0, 0)')
-      limb.addColorStop(1, 'rgba(0, 0, 0, 0.55)')
-      ctx!.fillStyle = limb
-      ctx!.fillRect(bodyX - r, bodyY - r, r * 2, r * 2)
-
-      ctx!.restore()
-
-      // Rim, kept faint — it is what separates the planet from the white disc
-      // when it is mid-transit.
-      ctx!.strokeStyle = 'rgba(169, 200, 255, 0.5)'
-      ctx!.lineWidth = 1
-      ctx!.beginPath()
-      ctx!.arc(bodyX, bodyY, r, 0, Math.PI * 2)
-      ctx!.stroke()
-    }
-
-    function drawCurve(flux: number[]) {
-      const top = height * 0.6
-      const bottom = height * 0.95
+    function drawCurve(frac: number) {
+      const top = height * 0.14
+      const bottom = height * 0.9
       const left = width * 0.04
       const right = width * 0.96
       const depth = (bodyR * bodyR) / (starR * starR)
@@ -363,10 +384,15 @@ export function Transit() {
 
       // Vertical mapping has to leave room for the variability to sit above the
       // unobscured baseline as well as below it, or the wobble clips flat
-      // against the top of the band and stops reading as noise.
+      // against the top of the band and stops reading as noise. Fixed to the
+      // full-depth range rather than the current dip, so the trace does not
+      // rescale itself as the visitor rotates the orbit — the dip has to be
+      // seen to shrink, which it cannot do if the axis shrinks with it.
       const hi = 1 + noiseAmp * 1.8
       const lo = 1 - depth - noiseAmp * 1.8
       const scale = (f: number) => bottom - ((f - lo) / (hi - lo)) * (bottom - top)
+
+      ctx!.clearRect(0, 0, width, height)
 
       // Baseline at unobscured flux, so the dip is measured against something.
       ctx!.strokeStyle = 'rgba(169, 200, 255, 0.14)'
@@ -376,8 +402,11 @@ export function Transit() {
       ctx!.lineTo(right, scale(1))
       ctx!.stroke()
 
-      const n = flux.length
-      const xAt = (i: number) => left + ((right - left) * i) / (n - 1)
+      const n = CURVE_SAMPLES
+      const step = (right - left) / (n - 1)
+      // The whole plot is offset by the sub-slot fraction; the oldest sample
+      // slides off the left edge as the newest arrives at the right.
+      const xAt = (i: number) => left + (i - frac) * step
 
       // Midpoint-quadratic smoothing. Even with 200 samples a polyline shows
       // visible corners where the gradient turns sharply; routing each segment
@@ -388,19 +417,19 @@ export function Transit() {
       ctx!.lineJoin = 'round'
       ctx!.lineCap = 'round'
       ctx!.beginPath()
-      ctx!.moveTo(xAt(0), scale(flux[0]))
+      ctx!.moveTo(xAt(0), scale(sampleAt(0)))
       for (let i = 1; i < n - 1; i += 1) {
         const cx = xAt(i)
-        const cy = scale(flux[i])
+        const cy = scale(sampleAt(i))
         const mx = (cx + xAt(i + 1)) / 2
-        const my = (cy + scale(flux[i + 1])) / 2
+        const my = (cy + scale(sampleAt(i + 1))) / 2
         ctx!.quadraticCurveTo(cx, cy, mx, my)
       }
       ctx!.quadraticCurveTo(
         xAt(n - 2),
-        scale(flux[n - 2]),
+        scale(sampleAt(n - 2)),
         xAt(n - 1),
-        scale(flux[n - 1]),
+        scale(sampleAt(n - 1)),
       )
       ctx!.stroke()
 
@@ -408,78 +437,43 @@ export function Transit() {
       // scrolling away from.
       ctx!.fillStyle = '#ffffff'
       ctx!.beginPath()
-      ctx!.arc(xAt(n - 1), scale(flux[n - 1]), 2.2, 0, Math.PI * 2)
+      ctx!.arc(xAt(n - 1), scale(sampleAt(n - 1)), 2.2, 0, Math.PI * 2)
       ctx!.fill()
-    }
-
-    function frame(
-      flux: number[],
-      bodyX: number,
-      bodyY: number,
-      front: boolean,
-      spin: number,
-    ) {
-      ctx!.clearRect(0, 0, width, height)
-      drawOrbitPath()
-      // Draw order encodes depth: in front of the star, the body is nearer
-      // the viewer and must be painted after (on top of) it; behind the
-      // star, the star occludes the body and must be painted after it.
-      if (front) {
-        drawStar()
-        drawBody(bodyX, bodyY, spin)
-      } else {
-        drawBody(bodyX, bodyY, spin)
-        drawStar()
-      }
-      drawCurve(flux)
     }
 
     measure()
 
     if (reduced) {
-      // Mid-ingress on the front pass: the body's centre exactly starR from
-      // the star's centre (the midpoint of the ramp), arriving from the
-      // left. Solved from the orbit geometry (cos(angle) = -starR / (travel
-      // / 2)) rather than reusing the old linear-travel constant, so it
-      // stays correct for the elliptical model at any aspect ratio. Since
-      // starR = min(w,h)*0.11 and travel = w*0.92, the asin argument is
-      // bounded by ~0.24 for any width/height, well inside its domain.
-      const midIngressPhase =
-        0.5 - Math.asin((2 * starR) / travel) / (2 * Math.PI)
-      const bodyX = bodyXAt(midIngressPhase)
-      const bodyY = bodyYAt(midIngressPhase)
-      const front = isFrontPass(midIngressPhase)
-      frame(buildFluxCurve(STATIC_NOW_MS), bodyX, bodyY, front, STATIC_SPIN)
+      seed(STATIC_NOW_MS, currentView())
+      drawCurve(0)
       const onResize = () => {
         measure()
-        const nextPhase =
-          0.5 - Math.asin((2 * starR) / travel) / (2 * Math.PI)
-        const nextX = bodyXAt(nextPhase)
-        const nextY = bodyYAt(nextPhase)
-        const nextFront = isFrontPass(nextPhase)
-        frame(buildFluxCurve(STATIC_NOW_MS), nextX, nextY, nextFront, STATIC_SPIN)
+        seed(STATIC_NOW_MS, currentView())
+        drawCurve(0)
       }
       window.addEventListener('resize', onResize)
       return () => window.removeEventListener('resize', onResize)
     }
 
     let raf = 0
-    let start = -1
+    let seeded = false
 
+    // `now` is used raw rather than as an offset from this component's own
+    // first frame. Both this and the 3D orbit derive orbital phase from the
+    // same rAF clock, so using each one's local start time put them on
+    // different origins — the dip in the trace led the planet's actual
+    // crossing by however long the (lazily loaded) scene took to mount.
     function tick(now: number) {
-      if (start < 0) start = now
-      const elapsed = now - start
-      const phase = (elapsed % PERIOD_MS) / PERIOD_MS
-      const bodyX = bodyXAt(phase)
-      const bodyY = bodyYAt(phase)
-      const front = isFrontPass(phase)
-      frame(
-        buildFluxCurve(elapsed),
-        bodyX,
-        bodyY,
-        front,
-        (elapsed / SPIN_MS) * Math.PI * 2,
-      )
+      const view = currentView()
+      if (!seeded) {
+        seed(now, view)
+        seeded = true
+      }
+      advance(now, view)
+      // How far into the current slot we are. `advance` leaves nextSampleAt
+      // strictly ahead of now, so this stays within [0, 1).
+      const frac = 1 - (nextSampleAt - now) / slotMs
+      drawCurve(frac < 0 ? 0 : frac > 1 ? 1 : frac)
       raf = requestAnimationFrame(tick)
     }
 
@@ -490,13 +484,13 @@ export function Transit() {
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', onResize)
     }
-  }, [reduced])
+  }, [reduced, viewRef])
 
   return (
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className="h-[260px] w-full sm:h-[300px]"
+      className="h-[86px] w-full sm:h-[100px]"
     />
   )
 }

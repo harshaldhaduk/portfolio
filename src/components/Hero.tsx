@@ -1,11 +1,26 @@
-import { useRef } from 'react'
+import { Suspense, lazy, useRef } from 'react'
 import { profile } from '../data/profile'
 import { useHeroEntrance } from '../hooks/useHeroEntrance'
-import { Transit } from './Transit'
+import { REST_VIEW, Transit } from './Transit'
+
+/**
+ * Split out of the main bundle: three.js is by far the heaviest thing the
+ * site ships, and holding first paint hostage to it for a decorative hero
+ * graphic is the wrong trade. The preloader covers the page for roughly two
+ * seconds anyway, which is ample time for this chunk to arrive, and the
+ * fallback below reserves the exact final height so nothing shifts when it
+ * does.
+ */
+const OrbitScene = lazy(() =>
+  import('./OrbitScene').then((m) => ({ default: m.OrbitScene })),
+)
 
 export function Hero({ ready = true }: { ready?: boolean }) {
   const ref = useRef<HTMLElement>(null)
   useHeroEntrance(ref, ready)
+  // Shared by the orbit and the light curve so the trace can respond to the
+  // viewing angle without re-rendering the hero on every frame of a drag.
+  const viewRef = useRef({ ...REST_VIEW })
 
   return (
     <header
@@ -52,10 +67,15 @@ export function Hero({ ready = true }: { ready?: boolean }) {
 
       <div className="order-first sm:order-none">
         <div className="hero-ignite">
-          <Transit />
+          <Suspense
+            fallback={<div aria-hidden="true" className="h-[260px] w-full sm:h-[300px]" />}
+          >
+            <OrbitScene ready={ready} viewRef={viewRef} />
+          </Suspense>
+          <Transit viewRef={viewRef} />
         </div>
         <p className="mt-2 text-center text-[10px] tracking-[0.18em] text-muted uppercase">
-          transit photometry · white dwarf
+          transit photometry · white dwarf · drag to rotate
         </p>
       </div>
     </header>

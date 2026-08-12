@@ -1,6 +1,19 @@
 import { render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { PERIOD_MS, Transit, fluxAt, fluxAtPhase, photometricNoise, fluxAtTime } from './Transit'
+import {
+  ORBIT_RADIUS,
+  PERIOD_MS,
+  PLANET_RADIUS,
+  STAR_RADIUS,
+  Transit,
+  fluxAt,
+  fluxAtPhase,
+  photometricNoise,
+  fluxAtTime,
+  REST_ELEVATION,
+  orbitAngle,
+  projectedSeparation,
+} from './Transit'
 import { mockCanvasContext } from '../test-utils/mockCanvas'
 
 function stubReducedMotion(matches: boolean) {
@@ -22,22 +35,6 @@ function stubRaf() {
   vi.stubGlobal('requestAnimationFrame', raf)
   vi.stubGlobal('cancelAnimationFrame', caf)
   return { raf, caf }
-}
-
-/** jsdom never lays out canvases, so clientWidth/clientHeight are 0 unless
- * stubbed. Returns a restore function so callers can un-stub between runs
- * of a width sweep within a single test. */
-function stubCanvasSize(width: number, height: number) {
-  const widthSpy = vi
-    .spyOn(HTMLCanvasElement.prototype, 'clientWidth', 'get')
-    .mockReturnValue(width)
-  const heightSpy = vi
-    .spyOn(HTMLCanvasElement.prototype, 'clientHeight', 'get')
-    .mockReturnValue(height)
-  return () => {
-    widthSpy.mockRestore()
-    heightSpy.mockRestore()
-  }
 }
 
 afterEach(() => {
@@ -107,74 +104,13 @@ describe('Transit', () => {
       expect(caf).toHaveBeenCalled()
     })
 
-    it('reduced motion: static body stays mid-ingress across widths', () => {
-      // Regression guard: the static frame's body position must be derived
-      // from geometry (starR/travel), not a width-independent constant — a
-      // hardcoded phase only lands inside the ingress zone at narrow widths
-      // and leaves the body clear of the disc (flux === 1) everywhere else.
-      const widths = [320, 448, 768, 1024]
-
-      for (const width of widths) {
-        stubReducedMotion(true)
-        stubRaf()
-        const { ctx, restore: restoreCtx } = mockCanvasContext()
-        const restoreSize = stubCanvasSize(width, 280)
-
-        const { unmount } = render(<Transit />)
-
-        // arc call order per frame(): drawStar's glow, drawStar's disc
-        // (starX, starY, starR), then drawBody (bodyX, starY, bodyR).
-        const [starX, , starR] = ctx.arc.mock.calls[1]
-        const [bodyX, , bodyR] = ctx.arc.mock.calls[2]
-        const depth = (bodyR * bodyR) / (starR * starR)
-
-        const flux = fluxAt(bodyX, starX, starR, bodyR)
-        expect(flux).not.toBe(1)
-        expect(flux).toBeCloseTo(1 - depth / 2, 10)
-
-        unmount()
-        restoreCtx()
-        restoreSize()
-      }
-    })
-
-    it('flips draw order between the back pass and the front pass', () => {
-      // The animation loop's rAF is stubbed, so it never recurses on its
-      // own; grabbing the captured tick callback and invoking it directly
-      // lets us drive the loop to an exact orbital phase without waiting.
-      stubReducedMotion(false)
-      const { ctx, restore: restoreCtx } = mockCanvasContext()
-      const { raf } = stubRaf()
-      const restoreSize = stubCanvasSize(768, 280)
-
-      const { unmount } = render(<Transit />)
-      const tick = raf.mock.calls[0][0] as (now: number) => void
-
-      // First call establishes start=0 -> phase 0 -> occultation (back
-      // pass): the star must be painted after (on top of) the body.
-      tick(0)
-      const backOrder = ctx.arc.mock.invocationCallOrder.slice()
-      const backCallsAtBody = ctx.arc.mock.calls.length
-      expect(backCallsAtBody).toBeGreaterThanOrEqual(3)
-      // arc call 0: body disc. arc calls 1,2: star glow + disc.
-      expect(backOrder[0]).toBeLessThan(backOrder[1])
-      expect(backOrder[0]).toBeLessThan(backOrder[2])
-
-      ctx.arc.mockClear()
-
-      // Half a period later -> phase 0.5 -> transit (front pass): the
-      // star must be painted before (underneath) the body.
-      tick(PERIOD_MS / 2)
-      const frontOrder = ctx.arc.mock.invocationCallOrder.slice()
-      expect(frontOrder.length).toBeGreaterThanOrEqual(3)
-      // arc calls 0,1: star glow + disc. arc call 2: body disc.
-      expect(frontOrder[2]).toBeGreaterThan(frontOrder[0])
-      expect(frontOrder[2]).toBeGreaterThan(frontOrder[1])
-
-      unmount()
-      restoreCtx()
-      restoreSize()
-    })
+    // The star, the planet and their draw order used to be asserted here by
+    // inspecting 2D arc() calls. That geometry now lives in the WebGL scene
+    // (OrbitScene), where occlusion is the depth buffer's job rather than
+    // paint order's, and jsdom has no WebGL to inspect. What actually needed
+    // protecting was the physics those assertions stood in for — that the
+    // planet really does cross the disc — which is now covered directly and
+    // far more precisely by the pure-function suites below.
   })
 
   describe('fluxAt (light-curve/transit synchronisation)', () => {
@@ -268,6 +204,141 @@ describe('Transit', () => {
       expect(Math.min(...curve)).toBeLessThan(0.95)
       expect(Math.min(...curve)).toBeCloseTo(1 - depth, 5)
     })
+  })
+})
+
+/**
+ * The behaviour that makes the orbit worth dragging: rotating away from
+ * edge-on has to genuinely stop the planet occulting the star, so the light
+ * curve flattens because of physics rather than because of a cosmetic fade.
+ */
+describe('viewing elevation (rotating the orbit)', () => {
+  const a = ORBIT_RADIUS
+  const starR = STAR_RADIUS
+  const bodyR = PLANET_RADIUS
+  const travel = a * 2
+  /** Above this, the planet's projected path clears the disc entirely and no
+   *  transit of any depth is geometrically possible. */
+  const grazingElevation = Math.asin((starR + bodyR) / a)
+
+  const minFluxOverOrbit = (elevation: number) => {
+    let min = 1
+    for (let i = 0; i < 720; i += 1) {
+      min = Math.min(min, fluxAtPhase(i / 720, 0, starR, bodyR, travel, elevation))
+    }
+    return min
+  }
+
+  it('edge-on reduces exactly to the flat horizontal case', () => {
+    for (const phase of [0, 0.17, 0.33, 0.5, 0.72, 0.95]) {
+      expect(projectedSeparation(phase, a, 0)).toBeCloseTo(
+        Math.abs(a * Math.cos(orbitAngle(phase))),
+        10,
+      )
+    }
+  })
+
+  it('still transits at the resting elevation the scene loads at', () => {
+    // Guards the default camera angle: pick it too steep and the hero would
+    // load with a light curve that never dips, which is the whole feature.
+    expect(REST_ELEVATION).toBeLessThan(grazingElevation)
+    expect(minFluxOverOrbit(REST_ELEVATION)).toBeLessThan(1)
+  })
+
+  /** Below this the planet's disc still falls entirely within the star's, so
+   *  the dip is at full depth however the orbit is rotated. */
+  const fullyInsideElevation = Math.asin((starR - bodyR) / a)
+
+  it('never deepens the dip as the orbit rotates away from edge-on', () => {
+    const depths = [0, 0.05, 0.1, 0.15, 0.2, 0.25].map((e) => 1 - minFluxOverOrbit(e))
+    for (let i = 1; i < depths.length; i += 1) {
+      expect(depths[i]).toBeLessThanOrEqual(depths[i - 1] + 1e-12)
+    }
+  })
+
+  it('holds full depth while the planet is still entirely inside the disc', () => {
+    // Not a plateau bug: a fully-contained planet blocks the same area of
+    // photosphere wherever it crosses, so the depth genuinely cannot change
+    // until its disc starts hanging over the limb.
+    const full = (bodyR * bodyR) / (starR * starR)
+    for (const e of [0, fullyInsideElevation * 0.5, fullyInsideElevation * 0.95]) {
+      expect(1 - minFluxOverOrbit(e)).toBeCloseTo(full, 12)
+    }
+  })
+
+  it('shrinks the dip through the grazing band, before it disappears', () => {
+    // Derived from the geometry rather than hardcoded, so retuning the scene's
+    // radii cannot silently move the band out from under this test.
+    const band = [0.2, 0.4, 0.6, 0.8].map(
+      (t) => fullyInsideElevation + t * (grazingElevation - fullyInsideElevation),
+    )
+    for (const e of band) {
+      expect(e).toBeGreaterThan(fullyInsideElevation)
+      expect(e).toBeLessThan(grazingElevation)
+    }
+    const depths = band.map((e) => 1 - minFluxOverOrbit(e))
+    for (let i = 1; i < depths.length; i += 1) {
+      expect(depths[i]).toBeLessThan(depths[i - 1])
+    }
+    expect(depths[depths.length - 1]).toBeGreaterThan(0)
+  })
+
+  it('has no dip at all once rotated past the grazing angle', () => {
+    expect(minFluxOverOrbit(grazingElevation + 0.05)).toBe(1)
+  })
+})
+
+/**
+ * Azimuth is the other half of the viewpoint, and it does a different job to
+ * elevation: swinging the camera horizontally moves *when* the planet lines up
+ * with the star, without changing how deep that alignment goes. Regression
+ * cover for the light curve having originally consumed elevation only, which
+ * pinned conjunction to one fixed bearing.
+ */
+describe('viewing azimuth (swinging the camera horizontally)', () => {
+  const a = ORBIT_RADIUS
+  const starR = STAR_RADIUS
+  const bodyR = PLANET_RADIUS
+  const travel = a * 2
+
+  /** Phase of deepest occultation, i.e. where the transit actually happens. */
+  const transitPhase = (azimuth: number) => {
+    let best = 0
+    let min = Infinity
+    for (let i = 0; i < 2000; i += 1) {
+      const phase = i / 2000
+      const f = fluxAtPhase(phase, 0, starR, bodyR, travel, 0, azimuth)
+      if (f < min) {
+        min = f
+        best = phase
+      }
+    }
+    return { phase: best, flux: min }
+  }
+
+  it('moves the transit to a different phase as the camera swings round', () => {
+    const head0n = transitPhase(0)
+    const quarter = transitPhase(Math.PI / 2)
+    expect(Math.abs(quarter.phase - head0n.phase)).toBeGreaterThan(0.2)
+  })
+
+  it('keeps the transit exactly as deep, wherever it moves to', () => {
+    // A circular orbit is the same distance out all the way round, so changing
+    // which side you watch it from cannot change how much light is blocked.
+    const depths = [0, 0.7, Math.PI / 2, 2.4, Math.PI].map((az) => transitPhase(az).flux)
+    for (const f of depths) {
+      expect(f).toBeCloseTo(depths[0], 6)
+      expect(f).toBeLessThan(1)
+    }
+  })
+
+  it('comes back round to where it started after a full turn', () => {
+    for (const phase of [0.1, 0.35, 0.6, 0.85]) {
+      expect(projectedSeparation(phase, a, 0.08, 0.9)).toBeCloseTo(
+        projectedSeparation(phase, a, 0.08, 0.9 + Math.PI * 2),
+        10,
+      )
+    }
   })
 })
 

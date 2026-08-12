@@ -30,8 +30,10 @@ describe('Projects', () => {
     )
   })
 
-  it('renders no link for Overwatch or Clarity', () => {
-    for (const id of ['overwatch', 'clarity']) {
+  // Clarity used to belong here too; it now carries a repo and a Devpost
+  // entry, so the linked-projects assertions below cover it instead.
+  it('renders no link for Overwatch', () => {
+    for (const id of ['overwatch']) {
       const project = projects.find((p) => p.id === id)!
       const { container } = render(<ProjectCard project={project} />)
       expect(container.querySelectorAll('a')).toHaveLength(0)

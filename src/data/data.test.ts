@@ -63,6 +63,12 @@ describe('content data', () => {
     // and it catches destinations nobody thought to forbid.
     const ALLOWED = [
       /^https:\/\/github\.com\/harshaldhaduk(\/|$)/,
+      // Clarity was a team project, so its repo sits on a collaborator's
+      // account rather than the owner's. Pinned to that one repository instead
+      // of the whole account, so admitting it widens the allowlist by exactly
+      // one destination and no more.
+      /^https:\/\/github\.com\/bruhlol108\/Clarity$/,
+      /^https:\/\/devpost\.com\/software\/[a-z0-9-]+$/,
       /^https:\/\/www\.linkedin\.com\/in\/harshaldhaduk(\/|$)/,
       /^mailto:[^@\s]+@[^@\s]+$/,
       /^\/[^/]/, // site-relative, e.g. the resume PDF

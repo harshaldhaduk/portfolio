@@ -24,14 +24,39 @@ describe('Preloader', () => {
     stubMatchMedia(true)
     const onDone = vi.fn()
     const { container } = render(<Preloader onDone={onDone} />)
-    expect(container.querySelector('[data-preloader-ring]')).toBeNull()
+    expect(container.querySelector('[data-preloader-bar]')).toBeNull()
     expect(onDone).toHaveBeenCalledTimes(1)
   })
 
   it('renders the overlay when motion is allowed', () => {
     stubMatchMedia(false)
     const { container } = render(<Preloader onDone={vi.fn()} />)
-    expect(container.querySelector('[data-preloader-ring]')).not.toBeNull()
+    expect(container.querySelector('[data-preloader-bar]')).not.toBeNull()
+  })
+
+  // The three pieces the timeline drives. If any selector drifts the
+  // animation silently degrades to a plain fade (see the else branch in
+  // Preloader), which is easy to miss by eye on a fast machine.
+  it('renders every element the timeline animates', () => {
+    stubMatchMedia(false)
+    const { container } = render(<Preloader onDone={vi.fn()} />)
+    for (const hook of ['bar', 'fill', 'flash', 'shock', 'digits']) {
+      expect(
+        container.querySelector(`[data-preloader-${hook}]`),
+        `missing [data-preloader-${hook}]`,
+      ).not.toBeNull()
+    }
+  })
+
+  // The whole timeline is gated on finding all six hooks; a renamed selector
+  // would silently drop it to the plain-fade fallback with no other symptom.
+  it('renders the counter and shows no percent sign', () => {
+    stubMatchMedia(false)
+    const { container } = render(<Preloader onDone={vi.fn()} />)
+    // NumberFlow renders its own internal markup, so assert on presence and
+    // on the digits it exposes rather than an exact textContent shape.
+    expect(container.querySelector('[data-preloader-digits]')?.textContent).toMatch(/\d/)
+    expect(container.textContent).not.toContain('%')
   })
 
   it('is hidden from assistive technology while visible', () => {
@@ -47,7 +72,7 @@ describe('Preloader', () => {
     render(<Preloader onDone={onDone} />)
     expect(onDone).not.toHaveBeenCalled()
     act(() => {
-      vi.advanceTimersByTime(3000)
+      vi.advanceTimersByTime(3500)
     })
     expect(onDone).toHaveBeenCalledTimes(1)
   })
@@ -58,10 +83,10 @@ describe('Preloader', () => {
     const onDone = vi.fn()
     render(<Preloader onDone={onDone} />)
     act(() => {
-      vi.advanceTimersByTime(3000)
+      vi.advanceTimersByTime(3500)
     })
     act(() => {
-      vi.advanceTimersByTime(3000)
+      vi.advanceTimersByTime(3500)
     })
     expect(onDone).toHaveBeenCalledTimes(1)
   })
@@ -80,12 +105,12 @@ describe('Preloader', () => {
     }
 
     const { container } = render(<Harness />)
-    expect(container.querySelector('[data-preloader-ring]')).not.toBeNull()
+    expect(container.querySelector('[data-preloader-bar]')).not.toBeNull()
 
     act(() => {
-      vi.advanceTimersByTime(3000)
+      vi.advanceTimersByTime(3500)
     })
 
-    expect(container.querySelector('[data-preloader-ring]')).toBeNull()
+    expect(container.querySelector('[data-preloader-bar]')).toBeNull()
   })
 })

@@ -39,7 +39,13 @@ export function EntryBody({
 
       <ul className="mt-3 space-y-2">
         {entry.summary.map((line) => (
-          <li key={line} className="max-w-[64ch] text-sm leading-relaxed text-ink/80">
+          // No measure cap: the line now runs to the edge of whatever
+          // container it is in. The previous 64ch was the conventional prose
+          // measure, but these cards are far wider than that on a desktop
+          // viewport, so it broke lines with a third of the card still empty
+          // and read as a bug rather than as typography. The project cards are
+          // narrow enough that the cap never bound there anyway.
+          <li key={line} className="text-sm leading-relaxed text-ink/80">
             {line}
           </li>
         ))}

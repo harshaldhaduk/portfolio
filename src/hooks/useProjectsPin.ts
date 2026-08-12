@@ -41,33 +41,48 @@ export function useProjectsPin(
   const [atEnd, setAtEnd] = useState(false)
   const stRef = useRef<ScrollTrigger | null>(null)
 
-  /** Width of one card plus the gap — same measurement useHorizontalScroll
-   *  uses, kept independent since the two hooks never run at once. */
-  const cardStride = useCallback(() => {
-    const track = trackRef.current
-    const first = track?.querySelector('li')
-    if (!track || !first) return 0
-    const rect = first.getBoundingClientRect()
-    const gap = parseFloat(getComputedStyle(track).columnGap || '0')
-    return rect.width + (Number.isNaN(gap) ? 0 : gap)
-  }, [trackRef])
-
   /** How far the track has to travel horizontally to reach its last card —
    *  also how much *extra* vertical scroll the pin holds for. */
   const distance = useCallback(() => {
     const track = trackRef.current
     const viewport = viewportRef.current
     if (!track || !viewport) return 0
-    return Math.max(0, track.scrollWidth - viewport.clientWidth)
+    const last = track.lastElementChild as HTMLElement | null
+    if (!last) return 0
+    // Measured from the last card rather than read off `scrollWidth`. Once a
+    // flex container's content overflows, `scrollWidth` stops accounting for
+    // the trailing padding — so the pin released while the track still had
+    // that much travel left, and the deck could never be scrolled fully to
+    // the right before the page moved on to the next section.
+    //
+    // `offsetLeft`/`offsetWidth` are layout values and so are immune to the
+    // GSAP transform already sitting on the track; reading a bounding rect
+    // here would fold the current scroll progress back into the measurement.
+    const padRight = parseFloat(getComputedStyle(track).paddingRight) || 0
+    const contentWidth = last.offsetLeft + last.offsetWidth + padRight
+    return Math.max(0, contentWidth - viewport.clientWidth)
   }, [trackRef, viewportRef])
+
+  /** Number of cards in the deck, read live so it tracks the data. */
+  const cardCount = useCallback(
+    () => trackRef.current?.children.length ?? 0,
+    [trackRef],
+  )
 
   const goTo = useCallback(
     (i: number) => {
       const st = stRef.current
-      const d = distance()
-      const stride = cardStride()
-      if (!st || !d || !stride) return
-      const progress = Math.max(0, Math.min(1, (i * stride) / d))
+      const count = cardCount()
+      if (!st || count < 2) return
+      // Index maps evenly across the travel rather than by card stride.
+      // Stride-based mapping put card `i` flush at the left edge, which the
+      // final cards can never reach — the track stops once its right edge
+      // meets the viewport's, so the last card comes to rest on the right.
+      // That left the deck's own end state unreachable by index, and the last
+      // dot consequently never lit. Even spacing makes index 0 and index
+      // count-1 exactly the two ends of the scroll, which is what the dots
+      // claim to represent.
+      const progress = Math.max(0, Math.min(1, i / (count - 1)))
       const target = st.start + progress * (st.end - st.start)
       gsap.to(st, {
         scroll: target,
@@ -76,7 +91,7 @@ export function useProjectsPin(
         overwrite: true,
       })
     },
-    [cardStride, distance],
+    [cardCount],
   )
 
   const step = useCallback(
@@ -113,9 +128,10 @@ export function useProjectsPin(
         anticipatePin: 1,
         invalidateOnRefresh: true,
         onUpdate: (self) => {
-          const stride = cardStride()
-          const d = distance()
-          const i = stride ? Math.round((self.progress * d) / stride) : 0
+          // Inverse of goTo's mapping, so the highlighted dot and the dot you
+          // can click always mean the same position.
+          const count = cardCount()
+          const i = count > 1 ? Math.round(self.progress * (count - 1)) : 0
           setIndex(i)
           setAtStart(self.progress <= 0.001)
           setAtEnd(self.progress >= 0.999)
@@ -169,7 +185,7 @@ export function useProjectsPin(
     // fresh each call) and including it would tear the pin down and rebuild
     // it every time `index` changes, i.e. on every scroll tick.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pinRef, viewportRef, trackRef, cardStride, distance])
+  }, [pinRef, viewportRef, trackRef, cardCount, distance])
 
   return { step, goTo, index, atStart, atEnd }
 }

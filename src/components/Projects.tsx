@@ -45,7 +45,7 @@ function DeckControls({ deck }: { deck: CardScroll }) {
  * fall back to a native smooth scroll via `useHorizontalScroll`.
  */
 function ProjectsStatic() {
-  const reveal = useSectionReveal<HTMLDivElement>()
+  const reveal = useSectionReveal<HTMLDivElement>({ hideOnLeave: false })
   const scrollerRef = useRef<HTMLDivElement>(null)
   const deck = useHorizontalScroll(scrollerRef)
 
@@ -63,7 +63,9 @@ function ProjectsStatic() {
         data-cursor-target
         className="deck-scroller relative left-1/2 w-screen -translate-x-1/2 snap-x snap-mandatory overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-dwarf focus-visible:outline-offset-4"
       >
-        <ul className="flex items-start gap-6 pb-1 pl-[max(1.5rem,calc((100vw-64rem)/2))] pr-[15vw]">
+        {/* Padding kept in step with the pinned track above, so both motion
+            modes frame the deck identically. */}
+        <ul className="flex items-start gap-6 px-[max(1.5rem,calc(50vw_-_32rem_+_1.5rem))] pt-6 pb-6">
           {projects.map((project) => (
             <ProjectCard key={project.id} project={project} />
           ))}
@@ -84,7 +86,7 @@ function ProjectsStatic() {
  * scroll position, and why there is no scoped horizontal Lenis here.
  */
 function ProjectsPinned() {
-  const reveal = useSectionReveal<HTMLUListElement>()
+  const reveal = useSectionReveal<HTMLUListElement>({ hideOnLeave: false })
   const pinRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLUListElement>(null)
@@ -124,7 +126,23 @@ function ProjectsPinned() {
             reveal.current = node
             trackRef.current = node
           }}
-          className="flex items-start gap-6 pb-1 pl-[max(1.5rem,calc((100vw-64rem)/2))] pr-[15vw]"
+          // Lands the first card exactly under the section heading, and leaves
+          // the same gap at the far end.
+          //
+          // The obvious `(100vw - 64rem)/2` misses by ~24px for two compounding
+          // reasons: this row is full-bleed (`left-1/2 w-screen`), and `100vw`
+          // counts the scrollbar the layout viewport does not — so the row's
+          // own left edge sits a few px off-screen — while the page container
+          // adds `px-6` on top of its `max-w-5xl` centring. Solving for
+          // "distance from this row's left edge to the content column"
+          // cancels the viewport width out completely and leaves
+          // `50vw - 32rem + 1.5rem`, which is correct at any width and immune
+          // to the scrollbar.
+          //
+          // The vertical padding is what gives the hover lift (and its glow)
+          // somewhere to go: the viewport clips, so without it a raised card
+          // was shaved off along the top.
+          className="flex items-start gap-6 px-[max(1.5rem,calc(50vw_-_32rem_+_1.5rem))] pt-6 pb-6"
         >
           {projects.map((project) => (
             <ProjectCard key={project.id} project={project} />

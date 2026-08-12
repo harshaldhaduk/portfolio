@@ -58,7 +58,17 @@ import { REDUCED_MOTION_QUERY, markAllRevealed, registerMotion } from '../lib/mo
  * (not reversing) — a hard jump that lands on a row from below must still
  * end up visible, not skipped to hidden.
  */
-export function useSectionReveal<T extends HTMLElement>() {
+/**
+ * @param hideOnLeave Whether rows also fade back out as they exit the *top*
+ *   of the viewport on the way down. On a normal vertical section that is what
+ *   makes the reveal symmetric. The Projects deck opts out: its cards leave
+ *   the viewport sideways under a pinned horizontal scroll, so tying their
+ *   opacity to vertical scroll position fades out cards that are still on
+ *   screen and mid-interaction.
+ */
+export function useSectionReveal<T extends HTMLElement>({
+  hideOnLeave = true,
+}: { hideOnLeave?: boolean } = {}) {
   const ref = useRef<T | null>(null)
 
   useEffect(() => {
@@ -112,7 +122,16 @@ export function useSectionReveal<T extends HTMLElement>() {
           ease: 'power2.in',
           stagger: 0.08,
           overwrite: true,
-          clearProps: 'all',
+          // Deliberately NO clearProps here, unlike `reveal`. Clearing the
+          // inline styles hands the hidden state back to the CSS rule, which
+          // is keyed on data-revealed being absent — and `reveal` removes
+          // that key *before* its tween starts. With no inline opacity left
+          // to hold the row down, flipping the attribute let CSS snap it
+          // straight to opacity 1, so the tween then ran 1 -> 1 and the row
+          // simply appeared. That is the "scroll down, up, down again and
+          // things just pop in" bug. Keeping the end state inline (it matches
+          // the CSS resting state anyway, so nothing looks different) leaves
+          // `reveal` an explicit 0 to animate up from every time.
         })
       }
 
@@ -120,8 +139,17 @@ export function useSectionReveal<T extends HTMLElement>() {
         start: 'top 85%',
         end: 'bottom 15%',
         interval: 0.15,
+        // Symmetric in both directions. `onLeave` is what makes rows retreat
+        // off the *top* as you continue down — without it a row revealed once
+        // stayed lit forever above the fold, so only the bottom edge of the
+        // section animated and the top edge just accumulated. With all four
+        // callbacks the section behaves the same whichever way you are
+        // travelling: rows fade in at the edge you are approaching and fade
+        // out at the edge you are leaving, and reversing direction plays the
+        // whole thing backwards.
         onEnter: reveal,
         onEnterBack: reveal,
+        onLeave: hideOnLeave ? hide : undefined,
         onLeaveBack: hide,
       })
 

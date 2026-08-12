@@ -25,6 +25,15 @@ function ResearchCard({ entry }: { entry: Entry }) {
   )
 }
 
+/**
+ * Deliberately the last thing in Research, which is the section immediately
+ * before Projects — and Projects is where the deck pins and takes over the
+ * scroll. Anything placed after this point would be inside the pinned range
+ * and could only be reached by scrolling the deck sideways first.
+ */
+const PAPER_HREF =
+  'https://drive.google.com/file/d/1SmQWYCrvfDyry09uclkE93txW-To6Q4F/view?usp=sharing'
+
 export function Research() {
   const ref = useSectionReveal<HTMLDivElement>()
 
@@ -35,6 +44,19 @@ export function Research() {
         {research.map((entry) => (
           <ResearchCard key={entry.id} entry={entry} />
         ))}
+
+        {/* Inside the revealed container so it fades in with the cards rather
+            than sitting there already lit while they animate. */}
+        <a
+          data-reveal
+          data-cursor-target
+          href={PAPER_HREF}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="link-sweep inline-block text-xs text-dwarf"
+        >
+          Read the paper ↗
+        </a>
       </div>
     </section>
   )
