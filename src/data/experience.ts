@@ -18,7 +18,7 @@ export const experience: Entry[] = [
     logoBg: '#feeae3',
     logoPad: '4px',
     title: 'Incoming Software Engineering Intern',
-    dates: 'Sept 2026',
+    dates: 'Fall 2026',
     location: 'Austin, TX',
     summary: [
       'Joining the Tax Innovation & Delivery Experience team, building automation frameworks that turn tax requirements into internal platforms.',
@@ -34,7 +34,7 @@ export const experience: Entry[] = [
     logoBg: '#005286',
     logoPad: '4px',
     title: 'Data Engineering Intern · Data & AI Platforms',
-    dates: 'May 2026 — Present',
+    dates: 'Summer 2026',
     location: 'Austin, TX',
     summary: [
       'Built Snowflake ETL pipelines orchestrated in Airflow with lineage tracing for 9,000 users, plus ML workflows deriving dataset field meaning from source code to cut manual research 5×.',
@@ -49,7 +49,7 @@ export const experience: Entry[] = [
     logo: '/logos/dell.svg',
     logoBg: '#ffffff',
     title: 'Software Engineering Intern',
-    dates: 'May 2025 — July 2025',
+    dates: 'Summer 2025',
     location: 'Round Rock, TX',
     summary: [
       'Built a speech-translation robot converting live audio to hardware instructions with Whisper and G-Code, and a real-time C++/MQTT diagnostics dashboard that streamlined embedded debugging by 50%.',
@@ -67,7 +67,7 @@ export const experience: Entry[] = [
     logoBg: '#14261a',
     logoPad: '4px',
     title: 'Software Engineering Intern',
-    dates: 'May 2024 — Aug 2024',
+    dates: 'Summer 2024',
     location: 'Remote',
     summary: [
       'Trained PyTorch and fastai clustering models over 2,000+ student profiles in SQL, placed 1st at an internal design competition, and pitched Kollegio at the ASU+GSV Summit.',
@@ -84,7 +84,7 @@ export const experience: Entry[] = [
     logo: '/logos/uci.svg',
     logoBg: '#245799',
     title: 'Data Analyst Intern',
-    dates: 'Aug 2023 — Aug 2024',
+    dates: 'Fall 2023 · Spring 2024',
     location: 'Remote',
     summary: [
       'Built a MATLAB DSL over Simulink and TensorFlow adopted in 4+ studies, applying fMRI drift-diffusion models to identify neural markers of early cognitive decline.',
@@ -101,7 +101,7 @@ export const experience: Entry[] = [
     logo: '/logos/ibm.svg',
     logoBg: '#ffffff',
     title: 'Software Engineering Fellow',
-    dates: 'June 2023 — July 2023',
+    dates: 'Summer 2023',
     location: 'Austin, TX',
     summary: [
       'Built IBM Quantum Learn, a Qiskit teaching portal that onboarded 500+ early-access users, with a WebSockets circuit visualiser streaming live qubit fidelity at 38% lower latency.',
