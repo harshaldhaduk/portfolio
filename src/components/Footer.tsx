@@ -6,28 +6,20 @@ export function Footer() {
 
   return (
     <footer ref={ref} className="border-t border-hairline pt-8 pb-16">
-      <ul data-reveal className="flex flex-wrap gap-x-6 gap-y-2">
-        {profile.links.map((link) => (
-          <li key={link.href}>
-            <a
-              href={link.href}
-              className="link-sweep text-xs text-muted"
-            >
-              {link.label}
-            </a>
-          </li>
-        ))}
-        {profile.resumeUrl ? (
+      {/* GitHub, LinkedIn and Email are gone from here by request. They were a
+          verbatim repeat of the row already in the hero, which on a page this
+          length meant the visitor met the same three links twice with nothing
+          new added the second time. The resume link stays because it appears
+          nowhere else. */}
+      {profile.resumeUrl ? (
+        <ul data-reveal className="flex flex-wrap gap-x-6 gap-y-2">
           <li>
-            <a
-              href={profile.resumeUrl}
-              className="link-sweep text-xs text-muted"
-            >
+            <a href={profile.resumeUrl} className="link-sweep text-xs text-muted">
               Resume
             </a>
           </li>
-        ) : null}
-      </ul>
+        </ul>
+      ) : null}
       <p data-reveal className="mt-4 text-[11px] text-muted">
         updated {profile.updated}
       </p>

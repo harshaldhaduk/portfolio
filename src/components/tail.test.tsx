@@ -27,13 +27,14 @@ describe('Systems', () => {
 })
 
 describe('Footer', () => {
-  it('renders every profile link', () => {
+  // The contact links live in the hero only. Repeating them down here put the
+  // same three destinations in front of the visitor twice, so the footer now
+  // deliberately carries none of them — asserted rather than left implicit, so
+  // reinstating them is a conscious change and not an accident.
+  it('does not repeat the hero contact links', () => {
     render(<Footer />)
     for (const link of profile.links) {
-      expect(screen.getByRole('link', { name: link.label })).toHaveAttribute(
-        'href',
-        link.href,
-      )
+      expect(screen.queryByRole('link', { name: link.label })).toBeNull()
     }
   })
 
