@@ -36,22 +36,20 @@ const LOAD_DURATION = 0.7
 const COUNT_STEPS = 50
 
 /**
- * Builds the detonation renderer for a canvas, returning a draw function that
- * takes progress 0-1.
+ * Builds the flash renderer for a canvas, returning a draw function that takes
+ * progress 0-1.
  *
- * Drawn rather than composed from CSS gradients because a scaled radial
- * gradient always reads as exactly what it is — a circle with a visible
- * boundary, however soft the falloff. What sells an explosion is the absence
- * of a clean edge, so the silhouette here is broken up three ways: rays of
- * differing length and width fire past the core, sparks scatter to varying
- * distances, and every element carries its own small start delay so nothing
- * shares a front. The circular core is still present but never gets to be the
- * outline, because faster rays and sparks are always outside it.
+ * A plain white flash — no rays, no debris. The reason the earlier CSS version
+ * read as "just a circle" was not that it was a gradient, it was that its edge
+ * stayed on screen: a disc scaled to fit the viewport necessarily shows its own
+ * boundary. Here the radius overshoots the corners several times over before
+ * the flash reaches full brightness, and the fill covers the whole canvas
+ * rather than an arc, so the falloff is always off-screen and there is no
+ * boundary left to recognise. What you see is the screen blowing out to white,
+ * not a shape growing.
  *
- * `lighter` compositing is what makes overlaps bloom instead of flatly
- * stacking — where rays cross they sum toward white, which is how real
- * over-exposed light behaves and is most of why this reads as hot rather than
- * as painted shapes.
+ * The two phases are deliberately lopsided, which is what makes it read as a
+ * flash rather than a fade: light floods in far faster than it decays.
  */
 function createBurst(canvas: HTMLCanvasElement) {
   const ctx = canvas.getContext('2d')
@@ -66,94 +64,31 @@ function createBurst(canvas: HTMLCanvasElement) {
 
   const cx = w / 2
   const cy = h / 2
-  // Reach the corners, so nothing ends mid-screen with a visible frontier.
   const maxR = Math.hypot(w, h) / 2
 
-  // Rays are seeded on an even angular base with jitter, rather than fully at
-  // random: pure randomness clumps, leaving bald patches that read as a gap in
-  // the explosion rather than as texture.
-  const rays = Array.from({ length: 34 }, (_, i) => ({
-    angle: (i / 34) * Math.PI * 2 + (Math.random() - 0.5) * 0.22,
-    reach: 0.45 + Math.random() * 0.9,
-    width: 1 + Math.random() * 3.5,
-    delay: Math.random() * 0.14,
-  }))
-
-  const sparks = Array.from({ length: 130 }, () => ({
-    angle: Math.random() * Math.PI * 2,
-    reach: 0.28 + Math.random() * 1.0,
-    size: 0.6 + Math.random() * 1.9,
-    delay: Math.random() * 0.18,
-  }))
-
-  /** Progress for an element that starts late, renormalised to its own 0-1. */
-  const staggered = (t: number, delay: number) =>
-    delay >= 1 ? 0 : Math.max(0, (t - delay) / (1 - delay))
+  /** Fraction of the burst spent flooding to peak brightness. */
+  const RISE = 0.15
 
   return (t: number) => {
     ctx.clearRect(0, 0, w, h)
-    ctx.globalCompositeOperation = 'lighter'
-    ctx.lineCap = 'round'
 
-    // Core. Fades faster than it grows so it is spent by the time the rays
-    // are at full extension — a core that outlives them looks like a balloon.
-    const coreT = 1 - Math.pow(1 - t, 3)
-    const coreR = maxR * coreT * 0.52
-    const coreA = Math.max(0, 1 - t * 1.15)
-    if (coreR > 0 && coreA > 0) {
-      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR)
-      g.addColorStop(0, `rgba(255,255,255,${coreA})`)
-      g.addColorStop(0.32, `rgba(216,233,255,${coreA * 0.5})`)
-      g.addColorStop(1, 'rgba(169,200,255,0)')
-      ctx.fillStyle = g
-      ctx.beginPath()
-      ctx.arc(cx, cy, coreR, 0, Math.PI * 2)
-      ctx.fill()
-    }
+    const rising = t <= RISE
+    const rise = Math.min(1, t / RISE)
+    const decay = rising ? 0 : (t - RISE) / (1 - RISE)
+    // Eased decay, so the last of the light lingers the way an over-exposed
+    // frame recovers rather than switching off.
+    const alpha = rising ? rise : Math.max(0, 1 - decay * decay)
+    if (alpha <= 0) return
 
-    for (const ray of rays) {
-      const rt = staggered(t, ray.delay)
-      if (rt <= 0) continue
-      const ease = 1 - Math.pow(1 - rt, 4)
-      const inner = maxR * ease * 0.1
-      const outer = maxR * ease * ray.reach
-      const alpha = Math.max(0, 1 - rt * 1.25)
-      if (alpha <= 0) continue
-      ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.7})`
-      ctx.lineWidth = Math.max(0.4, ray.width * (1 - rt * 0.7))
-      ctx.beginPath()
-      ctx.moveTo(cx + Math.cos(ray.angle) * inner, cy + Math.sin(ray.angle) * inner)
-      ctx.lineTo(cx + Math.cos(ray.angle) * outer, cy + Math.sin(ray.angle) * outer)
-      ctx.stroke()
-    }
-
-    for (const spark of sparks) {
-      const st = staggered(t, spark.delay)
-      if (st <= 0) continue
-      const ease = 1 - Math.pow(1 - st, 3)
-      const dist = maxR * ease * spark.reach
-      const alpha = Math.max(0, 1 - st * 1.1)
-      if (alpha <= 0) continue
-      ctx.fillStyle = `rgba(228,241,255,${alpha})`
-      ctx.beginPath()
-      ctx.arc(
-        cx + Math.cos(spark.angle) * dist,
-        cy + Math.sin(spark.angle) * dist,
-        Math.max(0.3, spark.size * (1 - st * 0.5)),
-        0,
-        Math.PI * 2,
-      )
-      ctx.fill()
-    }
-
-    // There is deliberately no stroked shockwave ring. One was tried and it
-    // was the single worst thing on screen: a crisp arc is unambiguously a
-    // circle, so it re-introduced exactly the hard geometric edge this whole
-    // renderer exists to avoid, and being the only continuous line it drew the
-    // eye straight to it. The expanding front is instead implied by the rays
-    // and sparks arriving at different radii, which leaves no traceable
-    // outline anywhere in the frame.
-    ctx.globalCompositeOperation = 'source-over'
+    // Well past the corners by peak, so the gradient's own edge never lands
+    // inside the frame.
+    const radius = maxR * (0.2 + 3.2 * (1 - Math.pow(1 - rise, 3)))
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius)
+    g.addColorStop(0, `rgba(255,255,255,${alpha})`)
+    g.addColorStop(0.5, `rgba(243,248,255,${alpha * 0.96})`)
+    g.addColorStop(1, `rgba(206,226,255,${alpha * 0.8})`)
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, w, h)
   }
 }
 
