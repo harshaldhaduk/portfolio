@@ -8,7 +8,7 @@ export const profile: Profile = {
   location: 'Austin, TX',
   intro: [
     'Hey, I’m Harshal! I enjoy big data and finding meaningful patterns in noise.',
-    'Whether I’m analyzing signals from space or debugging code, I apply those insights to build AI/ML solutions. Between CS and research on white dwarfs and stellar evolution, most of what I build sits somewhere between the two: pipelines, models, and tooling that improve how people interact with technology.',
+    'Whether I’m analyzing signals from space or debugging code, I apply those insights to build AI/ML solutions. That experience has pushed me to build scalable pipelines and platforms that make complex data easier to understand.',
   ],
   links: [
     { label: 'GitHub', href: 'https://github.com/harshaldhaduk' },
