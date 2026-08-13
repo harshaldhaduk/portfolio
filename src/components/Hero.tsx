@@ -41,7 +41,9 @@ export function Hero({ ready = true }: { ready?: boolean }) {
           {profile.degree}
         </p>
         <p data-hero-item className="mt-1 text-xs text-muted">
-          {profile.school} · {profile.grad} · {profile.location}
+          {/* Graduation date deliberately not shown. `profile.grad` is still
+              carried in the data for anything else that wants it. */}
+          {profile.school} · {profile.location}
         </p>
 
         {profile.intro.map((line) => (

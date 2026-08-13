@@ -20,13 +20,15 @@ describe('Hero', () => {
     ).toBeInTheDocument()
   })
 
-  it('states the degree, school and graduation', () => {
+  it('states the degree and school, but not the graduation date', () => {
     render(<Hero />)
     // Match the exact degree string rather than /astrophysics/i, which also
     // appears in the intro copy and would make getByText throw.
     expect(screen.getByText(profile.degree)).toBeInTheDocument()
     expect(screen.getByText(/texas at austin/i)).toBeInTheDocument()
-    expect(screen.getByText(/may 2028/i)).toBeInTheDocument()
+    // Asserted absent rather than simply dropped, so putting it back is a
+    // deliberate change instead of something that slips in unnoticed.
+    expect(screen.queryByText(new RegExp(profile.grad, 'i'))).toBeNull()
   })
 
   it('renders every intro paragraph', () => {
