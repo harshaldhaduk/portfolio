@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Analytics } from '@vercel/analytics/react'
 import { useSmoothScroll } from './hooks/useSmoothScroll'
 import { Starfield } from './components/Starfield'
 import { CursorRing } from './components/CursorRing'
@@ -19,6 +20,12 @@ export default function App() {
 
   return (
     <>
+      {/* Vercel Web Analytics. Renders nothing and sets no cookies — it beacons
+          a pageview and leaves, which is why it needs no consent banner. Inert
+          outside production, so local runs and the test suite never report. The
+          dashboard side still has to be switched on per project in Vercel;
+          without that this collects nothing. */}
+      <Analytics />
       {loading && <Preloader onDone={() => setLoading(false)} />}
       <CursorRing />
       <Starfield />
