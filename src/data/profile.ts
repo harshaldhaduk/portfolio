@@ -7,8 +7,8 @@ export const profile: Profile = {
   grad: 'May 2028',
   location: 'Austin, TX',
   intro: [
-    'I build data and ML infrastructure — pipelines, platforms, and the tooling that makes large datasets legible to the people using them.',
-    'The other half of my degree is astrophysics. I work in the White Dwarfs & Computational Stellar Evolution Lab, where I look for planets around dead stars.',
+    'Hey, I’m Harshal! I enjoy big data and finding meaningful patterns in noise.',
+    'Whether I’m analyzing signals from space or debugging code, I apply those insights to build AI/ML solutions that improve how people interact with technology.',
   ],
   links: [
     { label: 'GitHub', href: 'https://github.com/harshaldhaduk' },

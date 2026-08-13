@@ -37,7 +37,7 @@ export const experience: Entry[] = [
     dates: 'Summer 2026',
     location: 'Austin, TX',
     summary: [
-      'Built Snowflake ETL pipelines orchestrated in Airflow with lineage tracing for 9,000 users, plus ML workflows deriving dataset field meaning from source code to cut manual research 5×.',
+      'Constructed Snowflake ETL pipelines orchestrated in Airflow with lineage tracing for 9,000 users, plus ML workflows deriving dataset field meaning from source code to cut manual research 5×.',
     ],
     tags: ['Python', 'SQL', 'Snowflake', 'Airflow', 'Databricks'],
     links: [],
@@ -87,7 +87,7 @@ export const experience: Entry[] = [
     dates: 'Fall 2023 · Spring 2024',
     location: 'Remote',
     summary: [
-      'Built a MATLAB DSL over Simulink and TensorFlow adopted in 4+ studies, applying fMRI drift-diffusion models to identify neural markers of early cognitive decline.',
+      'Programmed a MATLAB DSL over Simulink and TensorFlow adopted in 4+ studies, applying fMRI drift-diffusion models to identify neural markers of early cognitive decline.',
     ],
     tags: ['MATLAB', 'Simulink', 'TensorFlow'],
     links: [],
@@ -104,7 +104,7 @@ export const experience: Entry[] = [
     dates: 'Summer 2023',
     location: 'Austin, TX',
     summary: [
-      'Built IBM Quantum Learn, a Qiskit teaching portal that onboarded 500+ early-access users, with a WebSockets circuit visualiser streaming live qubit fidelity at 38% lower latency.',
+      'Helped develop IBM Quantum Learn, a Qiskit teaching portal that onboarded 500+ early-access users, with a WebSockets circuit visualiser streaming live qubit fidelity at 38% lower latency.',
     ],
     tags: ['Python', 'Qiskit', 'WebSockets'],
     links: [],
