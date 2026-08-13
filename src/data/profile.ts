@@ -9,7 +9,7 @@ export const profile: Profile = {
   intro: [
     'Hey, I’m Harshal! I enjoy big data and finding meaningful patterns in noise.',
     'Whether I’m analyzing signals from space or debugging code, I apply those insights to build AI/ML solutions that improve how people interact with technology.',
-    'I’m studying CS and astrophysics at UT Austin, and I research in the White Dwarfs & Computational Stellar Evolution Lab, looking for planets around dead stars. Most of what I build sits somewhere between the two — pipelines, models, and tooling that make large, messy datasets usable.',
+    'I’m studying CS and astrophysics at UT Austin, and I research in the White Dwarfs & Computational Stellar Evolution Lab, looking for planets around dead stars. Most of what I build sits somewhere between the two: pipelines, models, and tooling that make large, messy datasets usable.',
   ],
   links: [
     { label: 'GitHub', href: 'https://github.com/harshaldhaduk' },
